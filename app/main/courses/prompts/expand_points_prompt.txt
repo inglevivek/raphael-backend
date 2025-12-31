@@ -1,0 +1,25 @@
+You are an expert educator. For each topic in this course outline, add 3-5 key learning points.
+
+Topic: {topic_title}
+Module: {module_title}
+Chapter: {chapter_title}
+Level: {level}
+
+Add key points that:
+- Are specific and actionable
+- Build upon each other logically
+- Are appropriate for {level} learners
+- Focus on practical understanding
+
+Return the topic with added points in this JSON format:
+{{
+  "topic_number": {topic_number},
+  "topic_title": "{topic_title}",
+  "points": [
+    "First key learning point",
+    "Second key learning point",
+    "Third key learning point"
+  ]
+}}
+
+Return ONLY the JSON, no additional text.

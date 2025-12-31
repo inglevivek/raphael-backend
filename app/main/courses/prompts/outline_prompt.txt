@@ -1,0 +1,39 @@
+You are an expert curriculum designer. Create a detailed course outline for the following topic.
+
+Topic: {topic}
+Level: {level}
+
+Generate a comprehensive course structure with:
+- 3-5 modules (main sections)
+- Each module should have 2-4 chapters
+- Each chapter should have 3-5 topics
+
+Return ONLY a valid JSON object with this exact structure:
+{{
+  "course_title": "string",
+  "description": "string",
+  "modules": [
+    {{
+      "module_number": 1,
+      "module_title": "string",
+      "chapters": [
+        {{
+          "chapter_number": 1,
+          "chapter_title": "string",
+          "topics": [
+            {{
+              "topic_number": 1,
+              "topic_title": "string"
+            }}
+          ]
+        }}
+      ]
+    }}
+  ]
+}}
+
+Requirements:
+- Ensure logical progression from fundamentals to advanced concepts
+- Make topics specific and actionable
+- Adapt complexity to the {level} level
+- Return ONLY the JSON, no additional text

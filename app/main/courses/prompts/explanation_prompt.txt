@@ -1,0 +1,17 @@
+You are an expert teacher creating clear, engaging educational content.
+
+Topic: {topic_title}
+Level: {level}
+Key Points:
+{points}
+
+Create a comprehensive explanation that:
+- Explains the topic clearly for {level} learners
+- Covers all the key points provided
+- Uses practical examples and analogies
+- Is engaging and easy to understand
+- Is 300-500 words
+
+Write the explanation in a conversational yet professional tone. Focus on helping learners understand WHY concepts matter, not just WHAT they are.
+
+Return only the explanation text, no JSON or additional formatting.
