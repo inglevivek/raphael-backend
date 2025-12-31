@@ -21,7 +21,7 @@ class Config:
     # API Keys
     GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
     YOUTUBE_API_KEY = os.environ.get('YOUTUBE_API_KEY')
-    
+    GROQ_API_KEY = os.environ.get('GROQ_API_KEY')  # Changed from GEMINI
     # Storage
     BASE_DIR = Path(__file__).parent
     COURSES_DIR = BASE_DIR / 'data' / 'courses'

@@ -33,9 +33,12 @@ class CoursesService:
         # Create course record
         course = CoursesRepository.create(user_id, topic, level)
         
+        # Get app instance before starting thread
+        app = current_app._get_current_object()
+
         # Start pipeline in background thread
         def run_pipeline():
-            with current_app.app_context():
+            with app.app_context():
                 pipeline = CourseGeneratorPipeline(course.id)
                 pipeline.generate()
         

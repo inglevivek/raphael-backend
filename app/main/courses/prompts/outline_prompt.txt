@@ -8,22 +8,28 @@ Generate a comprehensive course structure with:
 - Each module should have 2-4 chapters
 - Each chapter should have 3-5 topics
 
-Return ONLY a valid JSON object with this exact structure:
+IMPORTANT: You MUST respond with ONLY valid JSON. No explanations, no markdown formatting, just pure JSON.
+
+Use this EXACT structure:
 {{
-  "course_title": "string",
-  "description": "string",
+  "course_title": "Complete title for the course",
+  "description": "Brief description of what students will learn",
   "modules": [
     {{
       "module_number": 1,
-      "module_title": "string",
+      "module_title": "Introduction to Basics",
       "chapters": [
         {{
           "chapter_number": 1,
-          "chapter_title": "string",
+          "chapter_title": "Getting Started",
           "topics": [
             {{
               "topic_number": 1,
-              "topic_title": "string"
+              "topic_title": "What is Python?"
+            }},
+            {{
+              "topic_number": 2,
+              "topic_title": "Installing Python"
             }}
           ]
         }}
@@ -36,4 +42,4 @@ Requirements:
 - Ensure logical progression from fundamentals to advanced concepts
 - Make topics specific and actionable
 - Adapt complexity to the {level} level
-- Return ONLY the JSON, no additional text
+- Return ONLY valid JSON, nothing else

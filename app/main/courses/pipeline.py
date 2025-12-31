@@ -6,7 +6,7 @@ from pathlib import Path
 from flask import current_app
 
 from app.main.courses.repository import CoursesRepository
-from app.utils import GeminiClient, YouTubeClient, JSONStorage
+from app.utils import GeminiClient, YouTubeClient, JSONStorage, GroqClient
 from app.utils.logger import get_logger
 
 
@@ -26,6 +26,7 @@ class CourseGeneratorPipeline:
         self.course_id = course_id
         self.course = None
         self.gemini_client = None
+        self.groq_client = None
         self.youtube_client = None
         self.prompts_dir = Path(__file__).parent / 'prompts'
     
@@ -54,6 +55,7 @@ class CourseGeneratorPipeline:
             # Initialize
             self.course = CoursesRepository.get_by_id(self.course_id)
             self.gemini_client = GeminiClient(current_app.config['GEMINI_API_KEY'])
+            self.groq_client = GroqClient(current_app.config['GROQ_API_KEY'])
             self.youtube_client = YouTubeClient(current_app.config['YOUTUBE_API_KEY'])
             
             # Stage 1: Generate outline
@@ -91,7 +93,7 @@ class CourseGeneratorPipeline:
             level=self.course.level
         )
         
-        outline = self.gemini_client.generate_json(prompt)
+        outline = self.groq_client.generate_json(prompt)
         logger.info(f"[Course {self.course_id}] Generated outline with {len(outline.get('modules', []))} modules")
         return outline
     
@@ -119,7 +121,7 @@ class CourseGeneratorPipeline:
                         topic_number=topic['topic_number']
                     )
                     
-                    expanded_topic = self.gemini_client.generate_json(prompt)
+                    expanded_topic = self.groq_client.generate_json(prompt)
                     topic['points'] = expanded_topic.get('points', [])
         
         logger.info(f"[Course {self.course_id}] Expanded all topics with key points")
@@ -158,7 +160,7 @@ class CourseGeneratorPipeline:
                     )
                     
                     try:
-                        explanation = self.gemini_client.generate(prompt)
+                        explanation = self.groq_client.generate(prompt)
                         topic['explanation'] = explanation
                     except Exception as e:
                         logger.warning(f"Failed to generate explanation for topic '{topic['topic_title']}': {str(e)}")
