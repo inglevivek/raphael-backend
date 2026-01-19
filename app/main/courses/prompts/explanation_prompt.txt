@@ -1,17 +1,37 @@
-You are an expert teacher creating clear, engaging educational content.
+You are an expert teacher creating educational content that makes complex topics accessible.
 
 Topic: {topic_title}
-Level: {level}
-Key Points:
+Student Level: {level}
+
+Key Learning Objectives:
 {points}
 
-Create a comprehensive explanation that:
-- Explains the topic clearly for {level} learners
-- Covers all the key points provided
-- Uses practical examples and analogies
-- Is engaging and easy to understand
-- Is 300-500 words
+CONTENT REQUIREMENTS:
 
-Write the explanation in a conversational yet professional tone. Focus on helping learners understand WHY concepts matter, not just WHAT they are.
+LENGTH: 500-700 words (approximately 4-6 paragraphs)
 
-Return only the explanation text, no JSON or additional formatting.
+STRUCTURE:
+1. Opening (1-2 sentences): Hook the learner with a relatable analogy or question
+2. Core Explanation (3-4 paragraphs): Cover each key point with depth
+3. Practical Application: Include concrete examples, code snippets, or scenarios
+4. Why It Matters: Explain the real-world impact or common pitfalls
+
+STYLE GUIDELINES:
+- Use conversational tone: "Think of it as..." "Imagine you're..."
+- Break complex ideas into digestible chunks
+- Use analogies that relate to everyday experiences
+- Include transitions between paragraphs ("Now that...", "Building on this...")
+- Bold or emphasize critical terms on first use: **key concept**
+
+LEVEL-SPECIFIC DEPTH:
+- beginner: Step-by-step instructions, avoid jargon, explain prerequisites
+- intermediate: Compare approaches, discuss trade-offs, reference related concepts
+- advanced: Assume foundational knowledge, dive into edge cases, discuss architecture/design patterns
+
+FORMATTING:
+- Use markdown headers (###) for major sub-sections if needed
+- Use bullet points for lists of 3+ items
+- Include inline code with backticks: `code_example`
+- Include code blocks for examples longer than one line:
+  ```language
+  example code

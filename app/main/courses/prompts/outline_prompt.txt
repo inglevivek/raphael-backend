@@ -1,21 +1,13 @@
-You are an expert curriculum designer. Create a detailed course outline for the following topic.
+You are an expert curriculum designer. Create a comprehensive course outline for: {topic} (Level: {level})
+This is the structure, modify the content if necessary but structure must remain the same.
+CRITICAL: You MUST return ONLY a valid JSON object with this EXACT structure. Do NOT include markdown, code blocks, or explanations.
 
-Topic: {topic}
-Level: {level}
-
-Generate a comprehensive course structure with:
-- 3-5 modules (main sections)
-- Each module should have 2-4 chapters
-- Each chapter should have 3-5 topics
-
-Return ONLY a valid JSON object with this exact structure:
 {{
-  "course_title": "string",
-  "description": "string",
   "modules": [
     {{
       "module_number": 1,
-      "module_title": "string",
+      "module_title": "Introduction to {topic}",
+      "description": "Getting started with the fundamentals",
       "chapters": [
         {{
           "chapter_number": 1,
@@ -23,7 +15,50 @@ Return ONLY a valid JSON object with this exact structure:
           "topics": [
             {{
               "topic_number": 1,
-              "topic_title": "string"
+              "topic_title": "What is {topic}?"
+            }},
+            {{
+              "topic_number": 2,
+              "topic_title": "Installing and Setup"
+            }},
+            {{
+              "topic_number": 3,
+              "topic_title": "Your First Example"
+            }}
+          ]
+        }},
+        {{
+          "chapter_number": 2,
+          "chapter_title": "Core Concepts",
+          "topics": [
+            {{
+              "topic_number": 1,
+              "topic_title": "Basic Syntax"
+            }},
+            {{
+              "topic_number": 2,
+              "topic_title": "Key Terminology"
+            }}
+          ]
+        }}
+      ]
+    }},
+    {{
+      "module_number": 2,
+      "module_title": "Fundamentals",
+      "description": "Core building blocks",
+      "chapters": [
+        {{
+          "chapter_number": 1,
+          "chapter_title": "Essential Concepts",
+          "topics": [
+            {{
+              "topic_number": 1,
+              "topic_title": "Concept 1"
+            }},
+            {{
+              "topic_number": 2,
+              "topic_title": "Concept 2"
             }}
           ]
         }}
@@ -31,9 +66,11 @@ Return ONLY a valid JSON object with this exact structure:
     }}
   ]
 }}
-
+Do NOT return examples, explanations, or partial objects.
+Do NOT wrap in markdown code blocks.
 Requirements:
-- Ensure logical progression from fundamentals to advanced concepts
-- Make topics specific and actionable
-- Adapt complexity to the {level} level
-- Return ONLY the JSON, no additional text
+- Create 3-4 modules
+- Each module: 2-3 chapters
+- Each chapter: 3-5 topics
+- Level: {level}
+- Return ONLY the JSON, nothing else
