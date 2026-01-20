@@ -2,7 +2,7 @@
 Courses repository layer for database operations.
 """
 from typing import List
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.models import db, Course
 from app.exceptions import NotFoundException
@@ -115,7 +115,8 @@ class CoursesRepository:
             course = CoursesRepository.get_by_id(course_id)
             course.status = 'completed'
             course.json_path = json_path
-            course.completed_at = datetime.utcnow()
+            course.completed_at = datetime.now(timezone.utc) 
+
             db.session.commit()
             logger.info(f"Marked course {course_id} as completed")
         except Exception as e:
