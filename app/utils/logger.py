@@ -1,44 +1,53 @@
 """
-Logging utility for Raphael backend.
-Provides structured logging with consistent formatting.
+Centralized logging configuration.
+Prevents duplicate logs while ensuring output appears.
 """
+
 import logging
 import sys
-from typing import Optional
 
+# Global registry to track configured loggers
+_configured_loggers = set()
 
-def get_logger(name: str, level: Optional[int] = None) -> logging.Logger:
+def get_logger(name: str) -> logging.Logger:
     """
-    Get a configured logger instance with structured formatting.
-    
+    Get or create a logger with the given name.
+    Ensures logs appear exactly once in terminal.
+
     Args:
-        name (str): Logger name, typically __name__ from calling module
-        level (int, optional): Logging level, defaults to INFO
-    
+        name (str): Logger name (usually __name__)
+
     Returns:
         logging.Logger: Configured logger instance
     """
     logger = logging.getLogger(name)
-    
-    # Avoid adding handlers multiple times
-    if logger.handlers:
+
+    # Only configure each logger once (prevent duplicates)
+    if name in _configured_loggers:
         return logger
-    
-    # Set level
-    logger.setLevel(level or logging.INFO)
-    
+
+    # Clear any existing handlers (cleanup)
+    logger.handlers.clear()
+
     # Create console handler
     handler = logging.StreamHandler(sys.stdout)
-    handler.setLevel(level or logging.INFO)
-    
+
     # Create formatter
     formatter = logging.Formatter(
-        fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
+
     handler.setFormatter(formatter)
-    
+
     # Add handler to logger
     logger.addHandler(handler)
-    
+    logger.setLevel(logging.INFO)
+
+    # Prevent propagation to root logger (avoid duplicates)
+    logger.propagate = False
+
+    # Mark as configured
+    _configured_loggers.add(name)
+
     return logger

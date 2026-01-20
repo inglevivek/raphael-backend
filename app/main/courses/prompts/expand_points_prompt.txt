@@ -1,25 +1,38 @@
-You are an expert educator. For each topic in this course outline, add 3-5 key learning points.
+You are an expert educator designing actionable learning objectives.
 
-Topic: {topic_title}
-Module: {module_title}
-Chapter: {chapter_title}
-Level: {level}
+Context:
+- Topic: {topic_title}
+- Module: {module_title}
+- Chapter: {chapter_title}
+- Student Level: {level}
 
-Add key points that:
-- Are specific and actionable
-- Build upon each other logically
-- Are appropriate for {level} learners
-- Focus on practical understanding
+Your task: Generate 4 key learning points that students will master after studying this topic.
 
-Return the topic with added points in this JSON format:
+QUALITY CRITERIA:
+1. Start each point with an action verb (Identify, Apply, Create, Analyze, Develop, Implement)
+2. Include specific details, not vague concepts
+3. Build progression: point 1 → understand basics, point 4 → apply/create
+4. Make them measurable and testable
+5. Adapt complexity to {level} level:
+   - beginner: Focus on "what" and "how" (Identify, Describe, Use)
+   - intermediate: Focus on "apply" and "compare" (Implement, Analyze, Optimize)
+   - advanced: Focus on "design" and "evaluate" (Architect, Evaluate, Synthesize)
+
+EXAMPLES:
+❌ Bad (vague): "Learn about variables"
+✅ Good: "Declare and initialize variables of different data types (int, string, float) and explain when to use each type"
+
+❌ Bad (not actionable): "Understanding loops"
+✅ Good: "Implement for-loops and while-loops to iterate over lists and dictionaries, choosing the appropriate loop type for each scenario"
+
+JSON FORMAT:
 {{
-  "topic_number": {topic_number},
-  "topic_title": "{topic_title}",
   "points": [
-    "First key learning point",
-    "Second key learning point",
-    "Third key learning point"
+    "Action verb + specific skill/knowledge with concrete details",
+    "Action verb + specific skill/knowledge with concrete details",
+    "Action verb + specific skill/knowledge with concrete details",
+    "Action verb + specific skill/knowledge with concrete details"
   ]
 }}
 
-Return ONLY the JSON, no additional text.
+Return ONLY the JSON object, no explanations.
