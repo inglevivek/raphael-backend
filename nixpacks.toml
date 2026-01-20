@@ -1,0 +1,31 @@
+[phases.setup]
+nixPkgs = ["python39", "curl"]
+
+[phases.install]
+cmds = [
+    # Install uv (fast Python package installer)
+    "curl -LsSf https://astral.sh/uv/install.sh | sh",
+    
+    # Add uv to PATH
+    "export PATH=\"$HOME/.cargo/bin:$PATH\"",
+    
+    # Install dependencies with uv (10-100x faster than pip)
+    "uv pip install --system -r requirements.txt"
+]
+
+[phases.build]
+cmds = [
+    # Create necessary directories
+    "mkdir -p data/courses data/checkpoints",
+    
+    # Optional: Run database migrations if you add them later
+    # "python -m flask db upgrade"
+]
+
+[start]
+cmd = "gunicorn run:app --bind 0.0.0.0:$PORT --timeout 120 --workers 2 --access-logfile - --error-logfile -"
+
+[variables]
+# Railway will inject these, but defining here for clarity
+PORT = "5000"
+PYTHONUNBUFFERED = "1"
