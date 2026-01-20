@@ -65,6 +65,7 @@ db.sqlite3-journal
 instance/
 .webassets-cache
 
+
 # Scrapy stuff:
 .scrapy
 
@@ -207,6 +208,14 @@ marimo/_lsp/
 __marimo__/
 dev_raphael.db
 .env.example
-.history
-data
+
+
+
+# Folders
 Issues
+data
+directory_structure.txt
+.omen-code-index
+d.py
+repomix-output.html
+.history
