@@ -38,3 +38,4 @@ pylint==3.3.2
 groq==0.13.0
 
 gunicorn==23.0.0
+yt-dlp
