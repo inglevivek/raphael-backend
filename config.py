@@ -30,7 +30,8 @@ class Config:
     # ==========================================
     # FLASK SETTINGS
     # ==========================================
-    SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'dev-secret-key-change-in-production')
+    JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'dev-secret-key-change-in-production')
+    SECRET_KEY = JWT_SECRET_KEY
 
     # ==========================================
     # DATABASE (PostgreSQL)
