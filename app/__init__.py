@@ -89,5 +89,21 @@ def create_app(config_class=None):
         
         from app.main.errors import register_error_handlers
         register_error_handlers(app)
+        
+        # ✅ Run database migrations on startup (production only)
+        if os.getenv('RAILWAY_ENVIRONMENT') == 'production':
+            try:
+                from flask_migrate import upgrade
+                app.logger.info("🔄 Running database migrations...")
+                upgrade()
+                app.logger.info("✅ Database migrations completed successfully")
+                
+                # ✅ Verify database connection
+                db.session.execute(db.text('SELECT 1'))
+                app.logger.info("✅ Database connection verified")
+            except Exception as e:
+                app.logger.error(f"❌ Database migration/connection error: {e}")
+                # Don't fail startup - let the app try to connect later
+                # This allows Railway to start even if DB is temporarily unavailable
     
     return app
