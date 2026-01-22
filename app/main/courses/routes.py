@@ -15,7 +15,7 @@ logger = get_logger(__name__)
 courses_bp = Blueprint('courses', __name__)
 
 @courses_bp.route('', methods=['POST'])
-@jwt_required()
+@jwt_required()  # CSRF token automatically validated when JWT_COOKIE_CSRF_PROTECT=True
 @handle_errors
 @validate_schema(CreateCourseSchema)
 def create_course():
@@ -23,7 +23,8 @@ def create_course():
     Create new course and start generation.
 
     Headers:
-        Authorization: Bearer <token>
+        X-CSRF-TOKEN: <csrf_token>  # Required when using cookie-based auth
+        Cookie: access_token_cookie=<jwt_token>  # Automatically sent by browser
 
     Request Body:
         {
@@ -35,7 +36,7 @@ def create_course():
         tuple: (response, status_code)
         - 201: Course creation started
         - 400: Validation error
-        - 401: Unauthorized
+        - 401: Unauthorized (missing/invalid JWT or CSRF token)
     """
     user_id = get_jwt_identity()  # Returns UUID string
     data = request.validated_data

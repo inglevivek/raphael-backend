@@ -66,6 +66,10 @@ class Config:
     JWT_COOKIE_HTTPONLY = True  # Can't access via JavaScript
     JWT_COOKIE_SAMESITE = 'Lax'  # CSRF protection
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(days=7)  # 7 days
+    
+    # CSRF Protection for cookie-based auth
+    JWT_COOKIE_CSRF_PROTECT = True  # Enable CSRF token validation
+    JWT_CSRF_IN_COOKIES = True  # Store CSRF token in cookie
 
     # CORS for cookies
     CORS_SUPPORTS_CREDENTIALS = True
@@ -150,6 +154,7 @@ class ProductionConfig(Config):
     # ✅ Production-specific overrides
     JWT_COOKIE_SECURE = True  # HTTPS only
     JWT_COOKIE_SAMESITE = 'None'  # For cross-origin cookies with HTTPS
+    # CSRF protection is enabled via JWT_COOKIE_CSRF_PROTECT = True
     
     FRONTEND_URL = os.getenv('FRONTEND_URL', 'https://raphael-frontend-git-main-vivek-ingles-projects.vercel.app/')
     

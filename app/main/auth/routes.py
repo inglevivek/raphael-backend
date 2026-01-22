@@ -9,7 +9,8 @@ from flask_jwt_extended import (
     jwt_required,
     get_jwt_identity,
     set_access_cookies,
-    unset_jwt_cookies
+    unset_jwt_cookies,
+    get_csrf_token
 )
 from app.exceptions.api_error import APIErrorException
 from app.main.auth.service import AuthService
@@ -44,8 +45,18 @@ def register():
             'message': 'Registration successful'
         })
 
-        # ✅ Set JWT in HTTP-only cookie
+        # ✅ Set JWT in HTTP-only cookie (CSRF token is automatically included in cookie)
         set_access_cookies(response, access_token)
+        
+        # ✅ Include CSRF token in response header for frontend to read
+        # The token can be extracted from the encoded JWT or read from the csrf_access_token cookie
+        # Frontend should read from X-CSRF-TOKEN header or csrf_access_token cookie
+        try:
+            csrf_token = get_csrf_token(access_token)
+            response.headers['X-CSRF-TOKEN'] = csrf_token
+        except Exception:
+            # If CSRF extraction fails, frontend can still get it from /api/auth/csrf-token endpoint
+            pass
 
         return response, 201
 
@@ -79,8 +90,18 @@ def login():
             'message': 'Login successful'
         })
 
-        # ✅ Set JWT in HTTP-only cookie
+        # ✅ Set JWT in HTTP-only cookie (CSRF token is automatically included in cookie)
         set_access_cookies(response, access_token)
+        
+        # ✅ Include CSRF token in response header for frontend to read
+        # The token can be extracted from the encoded JWT or read from the csrf_access_token cookie
+        # Frontend should read from X-CSRF-TOKEN header or csrf_access_token cookie
+        try:
+            csrf_token = get_csrf_token(access_token)
+            response.headers['X-CSRF-TOKEN'] = csrf_token
+        except Exception:
+            # If CSRF extraction fails, frontend can still get it from /api/auth/csrf-token endpoint
+            pass
 
         return response, 200
 
@@ -104,6 +125,29 @@ def get_current_user():
         raise e
     except Exception as e:
         raise APIErrorException(f'Failed to get user: {str(e)}', 500)
+
+
+@auth_bp.route('/csrf-token', methods=['GET'])
+@jwt_required()
+def get_csrf_token_endpoint():
+    """
+    Get CSRF token for authenticated requests.
+    
+    This endpoint returns the CSRF token that must be included
+    in the X-CSRF-TOKEN header for state-changing operations
+    (POST, PUT, DELETE) when using cookie-based authentication.
+    
+    Returns:
+        tuple: (response, status_code)
+        - 200: CSRF token
+        - 401: Unauthorized
+    """
+    try:
+        csrf_token = get_csrf_token()
+        response = jsonify({'csrf_token': csrf_token})
+        return response, 200
+    except Exception as e:
+        raise APIErrorException(f'Failed to get CSRF token: {str(e)}', 500)
 
 
 @auth_bp.route('/logout', methods=['POST'])
