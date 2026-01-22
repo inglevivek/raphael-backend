@@ -26,7 +26,7 @@ def create_app(config_class=None):
     app=app,
     key_func=get_remote_address,
     default_limits=["200 per day", "50 per hour"],
-    storage_uri="redis://localhost:6379"  # Use REDIS_URL from config
+     storage_uri=app.config.get('REDIS_URL', 'memory://')   # Use REDIS_URL from config
 )
     # ✅ Load configuration from class (not string)
     if config_class is None:
