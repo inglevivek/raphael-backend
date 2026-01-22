@@ -62,9 +62,17 @@ def create_app(config_class=None):
     
     from app import models
     
-    # Configure CORS
+    # Configure CORS - Allow both localhost and production frontend
+    allowed_origins = [
+        'http://localhost:5000',
+        'http://localhost:3000',  # Common frontend dev port
+        app.config.get('FRONTEND_URL', 'https://raphael-frontend-git-main-vivek-ingles-projects.vercel.app/')
+    ]
+    # Remove duplicates and filter out None values
+    allowed_origins = list(dict.fromkeys([origin for origin in allowed_origins if origin]))
+    
     CORS(app,
-         origins=[app.config['FRONTEND_URL']],
+         origins=allowed_origins,
          supports_credentials=True,
          allow_headers=['Content-Type', 'Authorization'],
          methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
