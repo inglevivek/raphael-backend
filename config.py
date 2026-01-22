@@ -151,7 +151,7 @@ class ProductionConfig(Config):
     JWT_COOKIE_SECURE = True  # HTTPS only
     JWT_COOKIE_SAMESITE = 'None'  # For cross-origin cookies with HTTPS
     
-    FRONTEND_URL = os.getenv('FRONTEND_URL')
+    FRONTEND_URL = os.getenv('FRONTEND_URL', 'https://raphael-frontend-git-main-vivek-ingles-projects.vercel.app/')
     
     # Production-optimized database settings
     SQLALCHEMY_ENGINE_OPTIONS = {
