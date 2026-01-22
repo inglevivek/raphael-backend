@@ -4,12 +4,10 @@ Application entry point.
 import os
 from app import create_app, db
 from app.models import User, Course
+from config import get_config 
 
 
-# Create app with environment-based config
-config_name = os.environ.get('FLASK_ENV', 'development')
-app = create_app(config_name)
-
+app = create_app(get_config())
 
 @app.shell_context_processor
 def make_shell_context():
@@ -20,13 +18,11 @@ def make_shell_context():
         'Course': Course
     }
 
-
 @app.cli.command('init-db')
 def init_db_command():
     """Initialize database tables."""
     db.create_all()
     print("✅ Database tables created successfully!")
-
 
 @app.cli.command('reset-db')
 def reset_db_command():
@@ -35,6 +31,6 @@ def reset_db_command():
     db.create_all()
     print("✅ Database reset successfully!")
 
-
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    debug = os.getenv('FLASK_ENV') != 'production'
+    app.run(host='0.0.0.0', port=5000, debug=debug)

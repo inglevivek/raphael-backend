@@ -7,7 +7,8 @@ import tempfile
 from pathlib import Path
 from unittest.mock import Mock, MagicMock
 from flask import Flask
-from app.models import db, User, Course
+from app.models import User, Course
+from app import db
 from app.main.courses.memory import (
     TopicMemory, ChapterMemory, ModuleMemory, CourseMemory
 )

@@ -1,140 +1,231 @@
 """
 Configuration module for Raphael backend.
-Manages environment-specific settings for development, production, and testing.
+
+Auto-detects environment:
+- Development: Local or Docker development
+- Production: Railway deployment
+
+Environment Variables:
+- DATABASE_URL: PostgreSQL connection string
+- REDIS_URL: Redis connection string
+- GROQ_API_KEY: Groq API key
+- YOUTUBE_API_KEY: YouTube Data API key
+- JWT_SECRET_KEY: Secret key for JWT tokens
 """
 
 import os
 from datetime import timedelta
-from pathlib import Path
+from pickle import TRUE
+
 
 class Config:
-    """Base configuration class with common settings."""
+    """Base configuration with shared settings"""
 
-    # Security
-    SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key-change-in-production'
-    JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY') or 'jwt-secret-key-change-in-production'
-    JWT_ACCESS_TOKEN_EXPIRES = timedelta(days=7)
+    # ==========================================
+    # ENVIRONMENT DETECTION
+    # ==========================================
+    ENV = os.getenv('FLASK_ENV', 'development')
+    RAILWAY_ENVIRONMENT = os.getenv('RAILWAY_ENVIRONMENT')  # Set by Railway
 
-    # SQLAlchemy
+    # ==========================================
+    # FLASK SETTINGS
+    # ==========================================
+    SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'dev-secret-key-change-in-production')
+
+    # ==========================================
+    # DATABASE (PostgreSQL)
+    # ==========================================
+    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL')
+
+    # Handle Railway's postgres:// vs postgresql:// prefix
+    if SQLALCHEMY_DATABASE_URI and SQLALCHEMY_DATABASE_URI.startswith('postgres://'):
+        SQLALCHEMY_DATABASE_URI = SQLALCHEMY_DATABASE_URI.replace(
+            'postgres://', 'postgresql://', 1
+        )
+
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-
-    # ==================== LLM PROVIDER CONFIGURATION ====================
-    # Change these settings to switch between different LLM providers
-
-    # Primary LLM provider for content generation
-    # Options: 'groq', 'gemini', 'ollama', 'openai'
-    LLM_PROVIDER = os.environ.get('LLM_PROVIDER', 'groq')
-
-    # LLM API Keys (only needed for cloud providers)
-    GROQ_API_KEY = os.environ.get('GROQ_API_KEY')
-    GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
-    OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
-
-    # LLM Models configuration
-    LLM_MODELS = {
-        'groq': {
-            'model': os.environ.get('GROQ_MODEL', 'groq/compound-mini'),
-            'temperature': 1.0,
-            'top_p': 1.0,
-            'stream': True
-        },
-        'gemini': {
-            'model': os.environ.get('GEMINI_MODEL', 'gemini-2.5-flash'),
-            'temperature': 0.7,
-            'top_p': 0.9
-        },
-        'ollama': {
-            'model': os.environ.get('OLLAMA_MODEL', 'llama2'),
-            'base_url': os.environ.get('OLLAMA_BASE_URL', 'http://localhost:11434'),
-            'temperature': 0.8
-        },
-        'openai': {
-            'model': os.environ.get('OPENAI_MODEL', 'gpt-4'),
-            'temperature': 0.7,
-            'top_p': 0.9
-        }
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'pool_size': 10,
+        'pool_recycle': 3600,
+        'pool_pre_ping': True,
+        'max_overflow': 20
     }
 
-    # External APIs
-    YOUTUBE_API_KEY = os.environ.get('YOUTUBE_API_KEY')
+    # ==========================================
+    # REDIS
+    # ==========================================
+    REDIS_URL = os.getenv('REDIS_URL')
+    
+    # ==========================================
+    # JWT AUTHENTICATION
+    # ==========================================
+    # JWT Cookie Settings
+    JWT_TOKEN_LOCATION = ['cookies']  # Store in cookies, not headers
+    JWT_COOKIE_SECURE = False  # True in production (HTTPS only)
+    JWT_COOKIE_HTTPONLY = True  # Can't access via JavaScript
+    JWT_COOKIE_SAMESITE = 'Lax'  # CSRF protection
+    JWT_ACCESS_TOKEN_EXPIRES = timedelta(days=7)  # 7 days
 
-    # Storage
-    BASE_DIR = Path(__file__).parent
-    COURSES_DIR = BASE_DIR / 'data' / 'courses'
+    # CORS for cookies
+    CORS_SUPPORTS_CREDENTIALS = True
+    
 
-    @classmethod
-    def init_app(cls):
-        """Initialize application-level configuration."""
-        cls.COURSES_DIR.mkdir(parents=True, exist_ok=True)
+    # ==========================================
+    # LLM (Groq Only)
+    # ==========================================
+    GROQ_API_KEY = os.getenv('GROQ_API_KEY')
+    GROQ_MODEL = os.getenv('GROQ_MODEL', 'groq/compound-mini')
 
-    @classmethod
-    def get_llm_config(cls) -> dict:
-        """Get LLM configuration for the selected provider."""
-        provider = cls.LLM_PROVIDER.lower()
+    # ==========================================
+    # YOUTUBE API
+    # ==========================================
+    YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY')
 
-        if provider not in cls.LLM_MODELS:
-            raise ValueError(f"Unsupported LLM provider: {provider}")
+    # ==========================================
+    # COURSE GENERATION SETTINGS
+    # ==========================================
+    MAX_RETRIES = 3
+    CHECKPOINT_ENABLED = True
 
-        config = cls.LLM_MODELS[provider].copy()
+    @staticmethod
+    def validate():
+        """Validate required configuration"""
+        errors = []
+        
+        if not Config.SQLALCHEMY_DATABASE_URI:
+            errors.append("DATABASE_URL is required")
+        if not Config.GROQ_API_KEY:
+            errors.append("GROQ_API_KEY is required")
+        if not Config.YOUTUBE_API_KEY:
+            errors.append("YOUTUBE_API_KEY is required")
+        
+        # Add this:
+        if Config.RAILWAY_ENVIRONMENT == 'production':
+            if not Config.JWT_SECRET_KEY or Config.JWT_SECRET_KEY == 'dev-secret-key-change-in-production':
+                errors.append("JWT_SECRET_KEY must be set in production")
+            if not Config.SECRET_KEY or Config.SECRET_KEY == 'dev-secret-key-change-in-production':
+                errors.append("SECRET_KEY must be set in production")
+            # Add FRONTEND_URL check
+            if 'FRONTEND_URL' not in os.environ:
+                errors.append("FRONTEND_URL must be set in production")
+        
+        if errors:
+            error_msg = "Configuration errors:\n" + "\n".join(f" - {e}" for e in errors)
+            raise ValueError(error_msg)
 
-        # Add API key if available
-        api_key_map = {
-            'groq': cls.GROQ_API_KEY,
-            'gemini': cls.GEMINI_API_KEY,
-            'openai': cls.OPENAI_API_KEY,
-            'ollama': None  # Ollama doesn't need API key
-        }
+    @staticmethod
+    def init_app(app):
+        """Initialize app-specific configuration"""
+        Config.validate()
 
-        if provider in api_key_map:
-            config['api_key'] = api_key_map[provider]
-
-        return config
 
 class DevelopmentConfig(Config):
-    """Development environment configuration."""
+    """Development environment configuration (local or Docker)"""
+
     DEBUG = True
     TESTING = False
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DEV_DATABASE_URL') or \
-        f'sqlite:///{Config.BASE_DIR / "dev_raphael.db"}'
-    SQLALCHEMY_ECHO = True
+
+    # Verbose SQL logging in development
+    SQLALCHEMY_ECHO = False
+
+    # More detailed error pages
+    PROPAGATE_EXCEPTIONS = True
+    FRONTEND_URL ='http://localhost:3000'
+    @staticmethod
+    def init_app(app):
+        Config.init_app(app)
+        app.logger.info("🔧 Development mode enabled")
+        app.logger.info(f"📊 Database: {app.config.get('SQLALCHEMY_DATABASE_URI', 'Not configured')}")
+        app.logger.info(f"🔴 Redis: {app.config.get('REDIS_URL', 'Not configured')}")
+
 
 class ProductionConfig(Config):
-    """Production environment configuration."""
+    """Production environment configuration (Railway)"""
     DEBUG = False
     TESTING = False
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL')
     SQLALCHEMY_ECHO = False
-
-    @classmethod
-    def init_app(cls):
-        """Initialize production-specific settings."""
-        super().init_app()
-
-        # Validate required API keys based on selected provider
-        provider = cls.LLM_PROVIDER.lower()
-
-        if provider == 'groq' and not cls.GROQ_API_KEY:
-            raise ValueError("GROQ_API_KEY must be set in production")
-        elif provider == 'gemini' and not cls.GEMINI_API_KEY:
-            raise ValueError("GEMINI_API_KEY must be set in production")
-        elif provider == 'openai' and not cls.OPENAI_API_KEY:
-            raise ValueError("OPENAI_API_KEY must be set in production")
-
-        if not cls.YOUTUBE_API_KEY:
-            raise ValueError("YOUTUBE_API_KEY must be set in production")
+    PROPAGATE_EXCEPTIONS = False
+    
+    # ✅ Production-specific overrides
+    JWT_COOKIE_SECURE = True  # HTTPS only
+    JWT_COOKIE_SAMESITE = 'None'  # For cross-origin cookies with HTTPS
+    
+    FRONTEND_URL = os.getenv('FRONTEND_URL')
+    
+    # Production-optimized database settings
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'pool_size': 20,
+        'pool_recycle': 1800,
+        'pool_pre_ping': True,
+        'max_overflow': 40,
+        'pool_timeout': 30
+    }
+    
+    @staticmethod
+    def init_app(app):
+        Config.init_app(app)
+        
+        # Production-specific initialization
+        app.logger.info("🚀 Production mode enabled (Railway)")
+        app.logger.info(f"✅ Environment: {os.getenv('RAILWAY_ENVIRONMENT', 'Unknown')}")
+        app.logger.info("✅ PostgreSQL configured")
+        app.logger.info("✅ Redis configured" if app.config.get('REDIS_URL') else "⚠️ Redis not configured")
+        app.logger.info(f"✅ Groq API key: {'Set' if app.config.get('GROQ_API_KEY') else 'Missing'}")
+        app.logger.info(f"✅ YouTube API key: {'Set' if app.config.get('YOUTUBE_API_KEY') else 'Missing'}")
+        app.logger.info(f"✅ Frontend URL: {app.config.get('FRONTEND_URL', 'Not set')}")
+        
+        # ✅ Fail fast if critical production settings are wrong
+        if not app.config.get('JWT_COOKIE_SECURE'):
+            app.logger.warning("⚠️ JWT_COOKIE_SECURE is False in production!")
 
 class TestingConfig(Config):
-    """Testing environment configuration."""
+    """Testing environment configuration"""
+
     TESTING = True
     DEBUG = True
-    SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
-    SQLALCHEMY_ECHO = False
-    JWT_ACCESS_TOKEN_EXPIRES = timedelta(minutes=5)
-    LLM_PROVIDER = 'mock'  # Use mock provider for testing
 
+    # Use separate test database
+    SQLALCHEMY_DATABASE_URI = os.getenv(
+        'TEST_DATABASE_URL',
+        'postgresql://postgres:postgres@localhost:5432/raphael_test'
+    )
+
+    # Disable Redis in tests (or use separate instance)
+    REDIS_URL = None
+
+    # Fast password hashing for tests
+    BCRYPT_LOG_ROUNDS = 4
+
+    @staticmethod
+    def init_app(app):
+        app.logger.info("🧪 Testing mode enabled")
+
+
+# Configuration dictionary
 config = {
     'development': DevelopmentConfig,
     'production': ProductionConfig,
     'testing': TestingConfig,
     'default': DevelopmentConfig
 }
+
+
+def get_config():
+    """
+    Get configuration based on environment.
+
+    Priority:
+    1. RAILWAY_ENVIRONMENT (set by Railway)
+    2. FLASK_ENV (set by user)
+    3. Default to development
+
+    Returns:
+        Config: Configuration class
+    """
+    # Railway sets RAILWAY_ENVIRONMENT=production
+    if os.getenv('RAILWAY_ENVIRONMENT') == 'production':
+        return ProductionConfig
+
+    # Otherwise use FLASK_ENV
+    env = os.getenv('FLASK_ENV', 'development')
+    return config.get(env, DevelopmentConfig)

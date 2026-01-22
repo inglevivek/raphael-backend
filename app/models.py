@@ -1,179 +1,401 @@
 """
-Database models for Raphael backend.
-SQLAlchemy ORM models for User and Course entities.
+Database models for Raphael backend - PostgreSQL Production Schema
+
+Three-table architecture with best practices:
+1. User - Authentication and profile
+2. Course - Complete course JSON storage with metadata
+3. CourseCheckpoint - LLM cache and pipeline recovery (ONE ROW PER COURSE)
+
+Key improvements:
+- UUID primary keys (not guessable, scalable)
+- PostgreSQL ENUM for status (typo-safe)
+- GIN index on JSONB for fast searches
+- Renamed 'topic' → 'title' for clarity
+- Fixed to_dict_full() to avoid nesting collision
+
+Designed for Railway deployment with PostgreSQL and Redis integration.
 """
+
 from datetime import datetime
-from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import Index
+import uuid
+from sqlalchemy.dialects.postgresql import JSONB, ARRAY, UUID as PostgreSQL_UUID
+from sqlalchemy import Index, Enum as SQLEnum
+from app import db
+
+# PostgreSQL ENUM types for type safety
+CourseStatusEnum = SQLEnum(
+    'generating', 
+    'completed', 
+    'failed',
+    name='course_status',
+    create_type=True
+)
+
+PipelineStageEnum = SQLEnum(
+    'stage1',
+    'stage2', 
+    'stage3',
+    'stage4',
+    'completed',
+    name='pipeline_stage',
+    create_type=True
+)
 
 
-db = SQLAlchemy()
-
-
+# ========================================
+# TABLE 1: USERS
+# ========================================
 class User(db.Model):
-    """User model for authentication and course ownership."""
-    
+    """
+    User model for authentication and course ownership.
+
+    Uses UUID for security and scalability.
+    Single row per user containing all authentication data.
+    """
     __tablename__ = 'users'
-    
-    # Fields
-    id = db.Column(db.Integer, primary_key=True)
+
+    # Primary Key (UUID)
+    id = db.Column(
+        PostgreSQL_UUID(as_uuid=True), 
+        primary_key=True, 
+        default=uuid.uuid4
+    )
+
+    # User Data
     email = db.Column(db.String(120), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(255), nullable=False)
     name = db.Column(db.String(100), nullable=False)
+
+    # Timestamps
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    
+
     # Relationships
-    courses = db.relationship('Course', backref='user', lazy='dynamic', cascade='all, delete-orphan')
-    
+    courses = db.relationship(
+        'Course', 
+        backref='user', 
+        lazy='dynamic', 
+        cascade='all, delete-orphan'
+    )
+
     def to_dict(self):
         """
         Convert user to dictionary representation.
         Excludes sensitive data like password_hash.
-        
+
         Returns:
             dict: User data with id, email, name, created_at
         """
         return {
-            'id': self.id,
+            'id': str(self.id),  # Convert UUID to string
             'email': self.email,
             'name': self.name,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
-    
+
     def __repr__(self):
         return f'<User {self.email}>'
 
 
+# ========================================
+# TABLE 2: COURSES
+# ========================================
 class Course(db.Model):
-    """Course model for storing generated course metadata."""
-    
+    """
+    Course model for storing complete course JSON and metadata.
+
+    Single row per course containing:
+    - Metadata for fast /list queries (title, level, status, etc.)
+    - Complete course JSON unaltered in JSONB column
+    - No file-based storage, pure PostgreSQL
+
+    Key improvements:
+    - UUID primary key (secure, scalable)
+    - ENUM for status (typo-safe)
+    - GIN index on course_json for fast JSON searches
+    - 'title' instead of 'topic' for clarity
+
+    API Usage:
+    - GET /courses → Returns metadata only (fast)
+    - GET /courses/<id> → Returns full course_json under 'course' key
+    """
     __tablename__ = 'courses'
-    
-    # Fields
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
-    topic = db.Column(db.String(200), nullable=False)
+
+    # Primary Key (UUID)
+    id = db.Column(
+        PostgreSQL_UUID(as_uuid=True), 
+        primary_key=True, 
+        default=uuid.uuid4
+    )
+
+    # Foreign Key (UUID)
+    user_id = db.Column(
+        PostgreSQL_UUID(as_uuid=True),
+        db.ForeignKey('users.id', ondelete='CASCADE'), 
+        nullable=False, 
+        index=True
+    )
+
+    # ===== Metadata (for /list endpoint - fast queries) =====
+    title = db.Column(db.String(200), nullable=False)  # Course title (was 'topic')
     level = db.Column(db.String(20), nullable=False)  # beginner|intermediate|advanced
-    status = db.Column(db.String(20), nullable=False, default='generating', index=True)  # generating|completed|failed
-    json_path = db.Column(db.String(500), nullable=True)
-    error_message = db.Column(db.Text, nullable=True)
+    status = db.Column(
+        CourseStatusEnum,  # PostgreSQL ENUM (typo-safe)
+        nullable=False,
+        default='generating',
+        index=True
+    )
+
+    # ===== Complete Course JSON (unaltered storage) =====
+    course_json = db.Column(JSONB, nullable=False)
+    # Stores entire course structure:
+    # {
+    #   "metadata": {...},
+    #   "index": {"modules": [...]},
+    #   "content": {...}
+    # }
+
+    # ===== Additional Metadata (extracted for quick stats) =====
+    total_modules = db.Column(db.Integer)
+    total_chapters = db.Column(db.Integer)
+    total_topics = db.Column(db.Integer)
+    estimated_minutes = db.Column(db.Integer)
+
+    # ===== Error Handling =====
+    error_message = db.Column(db.Text)
+
+    # ===== Timestamps =====
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    completed_at = db.Column(db.DateTime, nullable=True)
-    
+    completed_at = db.Column(db.DateTime)
+
+    # Relationships
+    checkpoint = db.relationship(
+        'CourseCheckpoint', 
+        backref='course', 
+        uselist=False,  # One-to-one relationship
+        cascade='all, delete-orphan'
+    )
+
     # Indexes
     __table_args__ = (
         Index('idx_user_status', 'user_id', 'status'),
+        # GIN index for fast JSONB searches (e.g., search by module title, topic)
+        Index('idx_course_json_gin', 'course_json', postgresql_using='gin'),
     )
-    
-    def to_dict(self, include_content=False, base_dir=None):
+
+    def to_dict_metadata(self):
         """
-        Convert course to dictionary representation.
-        
-        Args:
-            include_content (bool): Whether to include JSON content
-            base_dir (Path): Base directory for loading content
-        
+        Convert course to dictionary with metadata only.
+        Used for /list endpoint to avoid loading full JSON.
+
         Returns:
-            dict: Course data
+            dict: Course metadata without course_json content
         """
         data = {
-            'id': self.id,
-            'topic': self.topic,
+            'id': str(self.id),  # Convert UUID to string
+            'title': self.title,  # Course title
             'level': self.level,
-            'status': self.status,
+            'status': self.status.value if hasattr(self.status, 'value') else self.status,
+            'total_modules': self.total_modules,
+            'total_chapters': self.total_chapters,
+            'total_topics': self.total_topics,
+            'estimated_minutes': self.estimated_minutes,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'completed_at': self.completed_at.isoformat() if self.completed_at else None
         }
-        
+
         if self.error_message:
             data['error_message'] = self.error_message
-        
-        if include_content and self.json_path and base_dir:
-            from app.utils.storage import JSONStorage
-            try:
-                data['content'] = JSONStorage.load_course(self.json_path, base_dir)
-            except Exception:
-                data['content'] = None
-        
+
         return data
-    
+
+    def to_dict_full(self):
+        """
+        Convert course to dictionary with full course JSON.
+        Used for /courses/<id> endpoint to return complete course.
+
+        Returns:
+            dict: Course metadata + full course_json under 'course' key
+                  (avoids nesting collision with 'content' node inside JSON)
+        """
+        data = self.to_dict_metadata()
+        # Use 'course' key instead of 'content' to avoid collision
+        # since course_json already has a 'content' node
+        data['course_json'] = self.course_json  
+        return data
+
     def __repr__(self):
-        return f'<Course {self.id}: {self.topic}>'
+        return f'<Course {self.id}: {self.title} ({self.status})>'
 
 
-class TopicContent(db.Model):
+# ========================================
+# TABLE 3: COURSE CHECKPOINTS
+# ========================================
+class CourseCheckpoint(db.Model):
     """
-    Stores individual topic content for crash recovery and content caching.
+    LLM cache and checkpoint persistence for crash recovery.
 
-    This model serves dual purposes:
-    1. Crash recovery: Resume course generation after failures
-    2. Content cache: Reuse generated content for similar topics
+    ONE ROW PER COURSE - stores all pipeline state and LLM context.
+
+    Architecture:
+    - Redis: Fast in-memory cache for active generation
+    - PostgreSQL: Persistent backup for crash recovery
+
+    Usage:
+    1. Pipeline saves checkpoints to Redis (fast)
+    2. On stage completion, persist to PostgreSQL
+    3. On crash/restart, recover from PostgreSQL
+    4. LLM context stored for future reference
     """
-    __tablename__ = 'topic_contents'
+    __tablename__ = 'course_checkpoints'
 
-    # Primary key
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    # Primary Key (UUID)
+    id = db.Column(
+        PostgreSQL_UUID(as_uuid=True), 
+        primary_key=True, 
+        default=uuid.uuid4
+    )
 
-    # Foreign key
-    course_id = db.Column(db.Integer, db.ForeignKey('courses.id', ondelete='CASCADE'), nullable=False)
+    # Foreign Key (ONE ROW PER COURSE - enforced by unique constraint)
+    course_id = db.Column(
+        PostgreSQL_UUID(as_uuid=True),
+        db.ForeignKey('courses.id', ondelete='CASCADE'), 
+        unique=True,  # Ensures one checkpoint per course
+        nullable=False, 
+        index=True
+    )
 
-    # Topic identification
-    topic_id = db.Column(db.String(100), nullable=False)  # e.g., 'mod_1_ch_1_top_1'
+    # ===== Stage Checkpoints (JSONB for flexibility) =====
+    stage1_outline = db.Column(JSONB)      # Stage 1: Course outline
+    stage2_points = db.Column(JSONB)       # Stage 2: Expanded key points
+    stage3_content = db.Column(JSONB)      # Stage 3: Generated content
+    stage4_resources = db.Column(JSONB)    # Stage 4: Video resources
 
-    # Topic metadata
-    module_number = db.Column(db.Integer)
-    chapter_number = db.Column(db.Integer)
-    topic_number = db.Column(db.Integer)
-    title = db.Column(db.String(500))
+    # ===== Current Pipeline State =====
+    current_stage = db.Column(PipelineStageEnum)  # PostgreSQL ENUM (typo-safe)
+    completed_stages = db.Column(ARRAY(db.String))  # ['stage1', 'stage2']
 
-    # Generated content (stored as JSON strings)
-    key_points = db.Column(db.Text)  # JSON array of key points
-    explanation = db.Column(db.Text)  # The main content explanation
-    videos = db.Column(db.Text)  # JSON array of video objects
+    # ===== LLM Context & Caching =====
+    llm_prompts = db.Column(JSONB)    # {"stage1": "prompt text", "stage2": "..."}
+    llm_responses = db.Column(JSONB)  # {"stage1": {...}, "stage2": {...}}
 
-    # Status tracking
-    status = db.Column(db.String(50), default='pending')
-    # Values: 'pending', 'points_complete', 'content_complete', 'complete', 'failed'
-    error_message = db.Column(db.Text, nullable=True)
+    # ===== Metrics =====
+    total_tokens = db.Column(db.Integer, default=0)
+    stage_tokens = db.Column(JSONB)  # {"stage1": 1500, "stage2": 3200, ...}
 
-    # Metrics
-    token_count = db.Column(db.Integer, default=0)
+    # ===== Recovery Metadata =====
+    last_successful_topic = db.Column(db.String(100))  # e.g., "mod_2_ch_3_top_5"
+    retry_count = db.Column(db.Integer, default=0)
+    error_log = db.Column(JSONB)  # [{"stage": "stage2", "error": "...", "timestamp": "..."}]
 
-    # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    generated_at = db.Column(db.String(100))  # ISO format timestamp
-
-    # Content hash for deduplication/caching
-    content_hash = db.Column(db.String(64), index=True)  # SHA256 of normalized topic title
+    # ===== Timestamps =====
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(
+        db.DateTime, 
+        nullable=False, 
+        default=datetime.utcnow, 
+        onupdate=datetime.utcnow
+    )
 
     # Indexes
     __table_args__ = (
-        Index('idx_course_topic', 'course_id', 'topic_id', unique=True),
-        Index('idx_course_status', 'course_id', 'status'),
-        Index('idx_content_hash_status', 'content_hash', 'status'),  # For cache lookups
+        Index('idx_current_stage', 'current_stage'),
     )
 
     def to_dict(self):
-        """Convert to dictionary representation."""
-        import json
+        """
+        Convert checkpoint to dictionary representation.
 
+        Returns:
+            dict: Checkpoint data with pipeline state and metadata
+        """
         return {
-            'id': self.id,
-            'course_id': self.course_id,
-            'topic_id': self.topic_id,
-            'module_number': self.module_number,
-            'chapter_number': self.chapter_number,
-            'topic_number': self.topic_number,
-            'title': self.title,
-            'key_points': json.loads(self.key_points) if self.key_points else [],
-            'explanation': self.explanation,
-            'videos': json.loads(self.videos) if self.videos else [],
-            'status': self.status,
-            'token_count': self.token_count,
+            'id': str(self.id),  # Convert UUID to string
+            'course_id': str(self.course_id),
+            'current_stage': self.current_stage.value if hasattr(self.current_stage, 'value') else self.current_stage,
+            'completed_stages': self.completed_stages or [],
+            'total_tokens': self.total_tokens,
+            'last_successful_topic': self.last_successful_topic,
+            'retry_count': self.retry_count,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
 
+    def get_stage_data(self, stage: str):
+        """
+        Get data for a specific stage.
+
+        Args:
+            stage (str): Stage identifier (stage1, stage2, stage3, stage4)
+
+        Returns:
+            dict: Stage data or None if not found
+        """
+        stage_map = {
+            'stage1': self.stage1_outline,
+            'stage2': self.stage2_points,
+            'stage3': self.stage3_content,
+            'stage4': self.stage4_resources
+        }
+        return stage_map.get(stage)
+
+    def set_stage_data(self, stage: str, data: dict):
+        """
+        Set data for a specific stage.
+
+        Args:
+            stage (str): Stage identifier (stage1, stage2, stage3, stage4)
+            data (dict): Stage data to store
+        """
+        if stage == 'stage1':
+            self.stage1_outline = data
+        elif stage == 'stage2':
+            self.stage2_points = data
+        elif stage == 'stage3':
+            self.stage3_content = data
+        elif stage == 'stage4':
+            self.stage4_resources = data
+
+    def add_error(self, stage: str, error_message: str):
+        """
+        Add error to error log.
+
+        Args:
+            stage (str): Stage where error occurred
+            error_message (str): Error description
+        """
+        if self.error_log is None:
+            self.error_log = []
+
+        self.error_log.append({
+            'stage': stage,
+            'error': error_message,
+            'timestamp': datetime.utcnow().isoformat(),
+            'retry_count': self.retry_count
+        })
+
+    def mark_stage_complete(self, stage: str):
+        """
+        Mark a stage as completed and advance to next.
+
+        Args:
+            stage (str): Stage to mark as complete
+        """
+        if self.completed_stages is None:
+            self.completed_stages = []
+
+        if stage not in self.completed_stages:
+            self.completed_stages.append(stage)
+
+        # Update current stage to next
+        stage_order = ['stage1', 'stage2', 'stage3', 'stage4']
+        try:
+            current_idx = stage_order.index(stage)
+            if current_idx < len(stage_order) - 1:
+                self.current_stage = stage_order[current_idx + 1]
+            else:
+                self.current_stage = 'completed'
+        except ValueError:
+            pass
+
     def __repr__(self):
-        return f'<TopicContent {self.topic_id} status={self.status}>'
+        return f'<CourseCheckpoint course_id={self.course_id} stage={self.current_stage}>'
