@@ -1,56 +1,77 @@
-"""
-Flask application factory.
-"""
 from flask import Flask
+from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
-from flask_migrate import Migrate
-
-from config import config
-from app.models import db
-from app.errors import register_error_handlers
-from app.utils.logger import get_logger
+from app.utils.redis.client import redis_client
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 
-logger = get_logger(__name__)
+# Initialize extensions
+db = SQLAlchemy()
 migrate = Migrate()
 jwt = JWTManager()
 
-
-def create_app(config_name='development'):
+def create_app(config_class=None):
     """
-    Create and configure Flask application.
+    Create Flask application with automatic config detection.
     
     Args:
-        config_name (str): Configuration environment name
-    
-    Returns:
-        Flask: Configured Flask application instance
+        config_class: Configuration class (auto-detected if None)
     """
     app = Flask(__name__)
     
-    # Load configuration
-    app.config.from_object(config[config_name])
-    config[config_name].init_app()
+    limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="redis://localhost:6379"  # Use REDIS_URL from config
+)
+    # ✅ Load configuration from class (not string)
+    if config_class is None:
+        from config import get_config
+        config_class = get_config()
+    
+    app.config.from_object(config_class)
+    
+    # Initialize config (validation + logging)
+    config_class.init_app(app)
     
     # Initialize extensions
     db.init_app(app)
     migrate.init_app(app, db)
     jwt.init_app(app)
-    CORS(app)
+    redis_client.init_app(app)
     
-    # Register error handlers
-    register_error_handlers(app)
+    from app import models
     
-    # Register blueprints
-    from app.main import main_bp
-    from app.main.auth import auth_bp
-    from app.main.courses import courses_bp
-    
-    app.register_blueprint(main_bp)
-    app.register_blueprint(auth_bp)
-    app.register_blueprint(courses_bp)
-    
-    logger.info(f"Flask app created with config: {config_name}")
+    # Configure CORS
+    CORS(app,
+         origins=[app.config['FRONTEND_URL']],
+         supports_credentials=True,
+         allow_headers=['Content-Type', 'Authorization'],
+         methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
+    @app.after_request
+    def set_security_headers(response):
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['X-Frame-Options'] = 'DENY'
+        response.headers['X-XSS-Protection'] = '1; mode=block'
+        response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+        response.headers['Content-Security-Policy'] = "default-src 'self'"
+        return response
+    # Import and register blueprints
+    with app.app_context():
+        from app.main.routes import main_bp
+        app.register_blueprint(main_bp)
+        
+        from app.main.auth.routes import auth_bp
+        app.register_blueprint(auth_bp, url_prefix='/api/auth')
+        
+        from app.main.courses.routes import courses_bp
+        app.register_blueprint(courses_bp, url_prefix='/api/courses')
+        
+        from app.main.errors import register_error_handlers
+        register_error_handlers(app)
     
     return app

@@ -7,16 +7,16 @@ from pydantic import BaseModel, field_validator
 
 class CreateCourseSchema(BaseModel):
     """Schema for course creation."""
-    
-    topic: str
+
+    title: str
     level: Literal['beginner', 'intermediate', 'advanced']
-    
-    @field_validator('topic')
+
+    @field_validator('title')
     @classmethod
-    def topic_validation(cls, v: str) -> str:
-        """Validate topic is not empty and within length limit."""
+    def title_validation(cls, v: str) -> str:
+        """Validate title is not empty and within length limit."""
         if not v or not v.strip():
-            raise ValueError('Topic cannot be empty')
+            raise ValueError('Title cannot be empty')
         if len(v) > 200:
-            raise ValueError('Topic must be 200 characters or less')
+            raise ValueError('Title must be 200 characters or less')
         return v.strip()

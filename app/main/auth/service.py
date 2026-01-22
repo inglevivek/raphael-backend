@@ -1,35 +1,36 @@
 """
 Authentication service layer for business logic.
+✅ UPDATED: Returns User objects for cookie-based authentication
 """
+
 import bcrypt
-from flask_jwt_extended import create_access_token
 from app.main.auth.repository import AuthRepository
+from app.models import User
 from app.exceptions import (
     EmailAlreadyExistsException,
     InvalidCredentialsException
 )
 from app.utils.logger import get_logger
 
-
 logger = get_logger(__name__)
 
 
 class AuthService:
     """Service for authentication business logic."""
-    
+
     @staticmethod
-    def register(email: str, password: str, name: str) -> dict:
+    def register(email: str, password: str, name: str) -> User:
         """
         Register new user with hashed password.
-        
+
         Args:
             email (str): User email
             password (str): Plain text password
             name (str): User name
-        
+
         Returns:
-            dict: {user: dict, token: str}
-        
+            User: User model object (not dict!)
+
         Raises:
             EmailAlreadyExistsException: If email already registered
         """
@@ -37,37 +38,33 @@ class AuthService:
         if AuthRepository.email_exists(email):
             logger.warning(f"Registration attempt with existing email: {email}")
             raise EmailAlreadyExistsException(f"Email {email} is already registered")
-        
+
         # Hash password
         password_hash = bcrypt.hashpw(
             password.encode('utf-8'),
             bcrypt.gensalt()
         ).decode('utf-8')
-        
+
         # Create user
         user = AuthRepository.create_user(email, password_hash, name)
-        
-        # Generate JWT token
-        token = create_access_token(identity=str(user.id))
-        
-        logger.info(f"User registered successfully: {email}")
-        return {
-            'user': user.to_dict(),
-            'token': token
-        }
-    
+
+        logger.info(f"User registered successfully: {email} (UUID: {user.id})")
+
+        # ✅ Return User object (route will create token and set cookie)
+        return user
+
     @staticmethod
-    def login(email: str, password: str) -> dict:
+    def login(email: str, password: str) -> User:
         """
-        Authenticate user and generate token.
-        
+        Authenticate user.
+
         Args:
             email (str): User email
             password (str): Plain text password
-        
+
         Returns:
-            dict: {user: dict, token: str}
-        
+            User: User model object (not dict!)
+
         Raises:
             InvalidCredentialsException: If credentials are invalid
         """
@@ -76,7 +73,7 @@ class AuthService:
             user = AuthRepository.get_user_by_email(email)
         except Exception:
             raise InvalidCredentialsException()
-        
+
         # Verify password
         if not bcrypt.checkpw(
             password.encode('utf-8'),
@@ -84,29 +81,25 @@ class AuthService:
         ):
             logger.warning(f"Invalid password attempt for: {email}")
             raise InvalidCredentialsException()
-        
-        # Generate JWT token
-        token = create_access_token(identity=str(user.id))
-        
-        logger.info(f"User logged in successfully: {email}")
-        return {
-            'user': user.to_dict(),
-            'token': token
-        }
-    
+
+        logger.info(f"User logged in successfully: {email} (UUID: {user.id})")
+
+        # ✅ Return User object (route will create token and set cookie)
+        return user
+
     @staticmethod
-    def get_current_user(user_id: int) -> dict:
+    def get_user_by_id(user_id: str) -> User:
         """
-        Fetch current user details.
-        
+        Fetch user by ID.
+
         Args:
-            user_id (int): User ID from JWT token
-        
+            user_id (str): User ID from JWT token (UUID string)
+
         Returns:
-            dict: User data
-        
+            User: User model object
+
         Raises:
             NotFoundException: If user not found
         """
-        user = AuthRepository.get_user_by_id(user_id)
-        return user.to_dict()
+        # ✅ Return User object
+        return AuthRepository.get_user_by_id(user_id)

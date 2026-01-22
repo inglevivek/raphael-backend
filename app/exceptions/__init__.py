@@ -12,7 +12,7 @@ from app.exceptions.auth import (
 from app.exceptions.not_found import NotFoundException
 from app.exceptions.validation import ValidationException
 from app.exceptions.storage import StorageException
-
+from app.exceptions.api_error import APIErrorException
 
 __all__ = [
     'BaseAPIException',
@@ -22,5 +22,6 @@ __all__ = [
     'EmailAlreadyExistsException',
     'NotFoundException',
     'ValidationException',
-    'StorageException'
+    'StorageException',
+    'APIErrorException'
 ]
