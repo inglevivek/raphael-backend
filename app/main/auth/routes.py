@@ -16,7 +16,7 @@ from app.main.auth.service import AuthService
 from app.exceptions import APIErrorException
 
 
-auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
+auth_bp = Blueprint('auth', __name__)
 
 
 @auth_bp.route('/register', methods=['POST'])

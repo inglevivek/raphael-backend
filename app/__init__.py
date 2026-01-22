@@ -6,6 +6,8 @@ from flask_jwt_extended import JWTManager
 from app.utils.redis.client import redis_client
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from werkzeug.middleware.proxy_fix import ProxyFix
+import os
 
 
 # Initialize extensions
@@ -22,13 +24,7 @@ def create_app(config_class=None):
     """
     app = Flask(__name__)
     
-    limiter = Limiter(
-    app=app,
-    key_func=get_remote_address,
-    default_limits=["200 per day", "50 per hour"],
-     storage_uri=app.config.get('REDIS_URL', 'memory://')   # Use REDIS_URL from config
-)
-    # ✅ Load configuration from class (not string)
+    # ✅ Load configuration from class (not string) - MUST BE FIRST
     if config_class is None:
         from config import get_config
         config_class = get_config()
@@ -37,6 +33,26 @@ def create_app(config_class=None):
     
     # Initialize config (validation + logging)
     config_class.init_app(app)
+    
+    # ✅ Add ProxyFix middleware for Railway reverse proxy
+    # This ensures proper handling of X-Forwarded-* headers
+    if os.getenv('RAILWAY_ENVIRONMENT') == 'production':
+        app.wsgi_app = ProxyFix(
+            app.wsgi_app,
+            x_for=1,  # Number of proxies in front
+            x_proto=1,
+            x_host=1,
+            x_port=1,
+            x_prefix=1
+        )
+    
+    # ✅ Initialize Limiter AFTER config is loaded
+    limiter = Limiter(
+        app=app,
+        key_func=get_remote_address,
+        default_limits=["200 per day", "50 per hour"],
+        storage_uri=app.config.get('REDIS_URL', 'memory://')
+    )
     
     # Initialize extensions
     db.init_app(app)
