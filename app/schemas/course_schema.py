@@ -2,12 +2,13 @@
 Pydantic schemas for course endpoints.
 """
 from typing import Literal
+from uuid import UUID
 from pydantic import BaseModel, field_validator
 
 
 class CreateCourseSchema(BaseModel):
     """Schema for course creation."""
-
+    user_id: UUID
     title: str
     level: Literal['beginner', 'intermediate', 'advanced']
 
