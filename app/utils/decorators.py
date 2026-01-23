@@ -34,6 +34,12 @@ def handle_errors(f: Callable) -> Callable:
         except BaseAPIException as e:
             logger.warning(f"API Exception: {e.message}", exc_info=True)
             return jsonify(e.to_dict()), e.status_code
+        except ValueError as e:
+            logger.warning(f"Validation error: {str(e)}")
+            return jsonify({
+                'error': str(e),
+                'status_code': 400
+            }), 400
         except Exception as e:
             logger.error(f"Unhandled exception: {str(e)}", exc_info=True)
             return jsonify({

@@ -1,30 +1,22 @@
 services:
-  # PostgreSQL 18 Database
   postgres:
     image: postgres:18-alpine
     container_name: raphael_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-raphael_prod}
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: raphael-db
+      POSTGRES_USER: raphael-admin
+      POSTGRES_PASSWORD: viktor911
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
-    volumes:
-      # Persistent database data
-      - postgres_data:/var/lib/raphael/postgresql/data
-      # Optional: Mount initialization scripts
-      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
-      # Optional: Mount backup directory
-      - ./docker/postgres/backups:/backups
+      - "5433:5432"   # 👈 Changed host port to avoid conflict
     networks:
       - raphael_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      test: ["CMD-SHELL", "pg_isready -U raphael-admin"]
       interval: 10s
       timeout: 5s
       retries: 5
-
+   
   # Redis 8 Cache
   redis:
     image: redis:8-alpine
@@ -32,7 +24,7 @@ services:
     restart: unless-stopped
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_password}
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "6379:6379"
     volumes:
       # Persistent cache data
       - redis_data:/data
@@ -49,9 +41,8 @@ services:
 volumes:
   # Named volumes (managed by Docker)
   postgres_data:
-    driver: local
   redis_data:
-    driver: local
+
 
 networks:
   raphael_network:

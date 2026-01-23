@@ -1,7 +1,7 @@
 """
 Global error handlers for Flask application.
 """
-from flask import jsonify
+from flask import jsonify, request
 from werkzeug.exceptions import HTTPException
 
 from app.exceptions import BaseAPIException

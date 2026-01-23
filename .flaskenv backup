@@ -1,10 +1,10 @@
 FLASK_APP=run.py
 FLASK_ENV=development
-FLASK_DEBUG=1
+
 # Database
 # DATABASE_URL=postgresql://postgres:QPusIhZHWVxcKjIbVkqcZnBpghIsHqEy@mainline.proxy.rlwy.net:13210/railway
-# DATABASE_URL=postgresql://raphael_admin:viktor911@localhost:5432/raphael-db
-DATABASE_URL=postgresql://raphael-admin:viktor911@localhost:5433/raphael-db
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/raphael_dev
+
 # API Keys
 GEMINI_API_KEY=AIzaSyDp9B_tm2zfhOKchM9PQtnVbt1661cfnFY
 YOUTUBE_API_KEY=AIzaSyB6V9x5iFsGeirelFfh4yLrgwwf1C9MSWk
