@@ -16,16 +16,20 @@ Key improvements:
 Designed for Railway deployment with PostgreSQL and Redis integration.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
+from sqlalchemy import (
+    Column, String, Integer, Text, DateTime, Boolean,
+    Index, Enum as SQLEnum, ForeignKey
+)
+from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import JSONB, ARRAY, UUID as PostgreSQL_UUID
-from sqlalchemy import Index, Enum as SQLEnum
-from app import db
+from app.database import Base
 
 # PostgreSQL ENUM types for type safety
 CourseStatusEnum = SQLEnum(
-    'generating', 
-    'completed', 
+    'generating',
+    'completed',
     'failed',
     name='course_status',
     create_type=True
@@ -33,7 +37,7 @@ CourseStatusEnum = SQLEnum(
 
 PipelineStageEnum = SQLEnum(
     'stage1',
-    'stage2', 
+    'stage2',
     'stage3',
     'stage4',
     'completed',
@@ -45,7 +49,7 @@ PipelineStageEnum = SQLEnum(
 # ========================================
 # TABLE 1: USERS
 # ========================================
-class User(db.Model):
+class User(Base):
     """
     User model for authentication and course ownership.
 
@@ -55,25 +59,42 @@ class User(db.Model):
     __tablename__ = 'users'
 
     # Primary Key (UUID)
-    id = db.Column(
-        PostgreSQL_UUID(as_uuid=True), 
-        primary_key=True, 
+    id = Column(
+        PostgreSQL_UUID(as_uuid=True),
+        primary_key=True,
         default=uuid.uuid4
     )
 
+    auth0_user_id = Column(
+        String(255),
+        unique=True,
+        nullable=False,
+        index=True
+    )
+
     # User Data
-    email = db.Column(db.String(120), unique=True, nullable=False, index=True)
-    password_hash = db.Column(db.String(255), nullable=False)
-    name = db.Column(db.String(100), nullable=False)
+    email = Column(String(120), unique=True, nullable=False, index=True)
+
+    picture = Column(String(500), nullable=True)
+    password_hash = Column(String(255), nullable=False)
+    name = Column(String(100), nullable=False)
+    email_verified = Column(Boolean, default=False)
+
+    last_login_at = Column(DateTime, nullable=True)
 
     # Timestamps
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(
+        DateTime,
+        nullable=False,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow
+    )
     # Relationships
-    courses = db.relationship(
-        'Course', 
-        backref='user', 
-        lazy='dynamic', 
+    courses = relationship(
+        'Course',
+        backref='user',
+        lazy='dynamic',
         cascade='all, delete-orphan'
     )
 
@@ -86,9 +107,13 @@ class User(db.Model):
             dict: User data with id, email, name, created_at
         """
         return {
-            'id': str(self.id),  # Convert UUID to string
+            'id': str(self.id),  # Internal UUID
+            'auth0_user_id': self.auth0_user_id,  # Auth0 subject
             'email': self.email,
             'name': self.name,
+            'picture': self.picture,
+            'email_verified': self.email_verified,
+            'last_login_at': self.last_login_at.isoformat() if self.last_login_at else None,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
 
@@ -99,7 +124,7 @@ class User(db.Model):
 # ========================================
 # TABLE 2: COURSES
 # ========================================
-class Course(db.Model):
+class Course(Base):
     """
     Course model for storing complete course JSON and metadata.
 
@@ -121,24 +146,24 @@ class Course(db.Model):
     __tablename__ = 'courses'
 
     # Primary Key (UUID)
-    id = db.Column(
-        PostgreSQL_UUID(as_uuid=True), 
-        primary_key=True, 
+    id = Column(
+        PostgreSQL_UUID(as_uuid=True),
+        primary_key=True,
         default=uuid.uuid4
     )
 
     # Foreign Key (UUID)
-    user_id = db.Column(
+    user_id = Column(
         PostgreSQL_UUID(as_uuid=True),
-        db.ForeignKey('users.id', ondelete='CASCADE'), 
-        nullable=False, 
+        ForeignKey('users.id', ondelete='CASCADE'),
+        nullable=False,
         index=True
     )
 
     # ===== Metadata (for /list endpoint - fast queries) =====
-    title = db.Column(db.String(200), nullable=False)  # Course title (was 'topic')
-    level = db.Column(db.String(20), nullable=False)  # beginner|intermediate|advanced
-    status = db.Column(
+    title = Column(String(200), nullable=False)  # Course title (was 'topic')
+    level = Column(String(20), nullable=False)  # beginner|intermediate|advanced
+    status = Column(
         CourseStatusEnum,  # PostgreSQL ENUM (typo-safe)
         nullable=False,
         default='generating',
@@ -146,7 +171,7 @@ class Course(db.Model):
     )
 
     # ===== Complete Course JSON (unaltered storage) =====
-    course_json = db.Column(JSONB, nullable=False)
+    course_json = Column(JSONB, nullable=False)
     # Stores entire course structure:
     # {
     #   "metadata": {...},
@@ -155,22 +180,22 @@ class Course(db.Model):
     # }
 
     # ===== Additional Metadata (extracted for quick stats) =====
-    total_modules = db.Column(db.Integer)
-    total_chapters = db.Column(db.Integer)
-    total_topics = db.Column(db.Integer)
-    estimated_minutes = db.Column(db.Integer)
+    total_modules = Column(Integer)
+    total_chapters = Column(Integer)
+    total_topics = Column(Integer)
+    estimated_minutes = Column(Integer)
 
     # ===== Error Handling =====
-    error_message = db.Column(db.Text)
+    error_message = Column(Text)
 
     # ===== Timestamps =====
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    completed_at = db.Column(db.DateTime)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    completed_at = Column(DateTime)
 
     # Relationships
-    checkpoint = db.relationship(
-        'CourseCheckpoint', 
-        backref='course', 
+    checkpoint = relationship(
+        'CourseCheckpoint',
+        backref='course',
         uselist=False,  # One-to-one relationship
         cascade='all, delete-orphan'
     )
@@ -220,7 +245,7 @@ class Course(db.Model):
         data = self.to_dict_metadata()
         # Use 'course' key instead of 'content' to avoid collision
         # since course_json already has a 'content' node
-        data['course_json'] = self.course_json  
+        data['course_json'] = self.course_json
         return data
 
     def __repr__(self):
@@ -230,7 +255,7 @@ class Course(db.Model):
 # ========================================
 # TABLE 3: COURSE CHECKPOINTS
 # ========================================
-class CourseCheckpoint(db.Model):
+class CourseCheckpoint(Base):
     """
     LLM cache and checkpoint persistence for crash recovery.
 
@@ -249,50 +274,50 @@ class CourseCheckpoint(db.Model):
     __tablename__ = 'course_checkpoints'
 
     # Primary Key (UUID)
-    id = db.Column(
-        PostgreSQL_UUID(as_uuid=True), 
-        primary_key=True, 
+    id = Column(
+        PostgreSQL_UUID(as_uuid=True),
+        primary_key=True,
         default=uuid.uuid4
     )
 
     # Foreign Key (ONE ROW PER COURSE - enforced by unique constraint)
-    course_id = db.Column(
+    course_id = Column(
         PostgreSQL_UUID(as_uuid=True),
-        db.ForeignKey('courses.id', ondelete='CASCADE'), 
+        ForeignKey('courses.id', ondelete='CASCADE'),
         unique=True,  # Ensures one checkpoint per course
-        nullable=False, 
+        nullable=False,
         index=True
     )
 
     # ===== Stage Checkpoints (JSONB for flexibility) =====
-    stage1_outline = db.Column(JSONB)      # Stage 1: Course outline
-    stage2_points = db.Column(JSONB)       # Stage 2: Expanded key points
-    stage3_content = db.Column(JSONB)      # Stage 3: Generated content
-    stage4_resources = db.Column(JSONB)    # Stage 4: Video resources
+    stage1_outline = Column(JSONB)      # Stage 1: Course outline
+    stage2_points = Column(JSONB)       # Stage 2: Expanded key points
+    stage3_content = Column(JSONB)      # Stage 3: Generated content
+    stage4_resources = Column(JSONB)    # Stage 4: Video resources
 
     # ===== Current Pipeline State =====
-    current_stage = db.Column(PipelineStageEnum)  # PostgreSQL ENUM (typo-safe)
-    completed_stages = db.Column(ARRAY(db.String))  # ['stage1', 'stage2']
+    current_stage = Column(PipelineStageEnum)  # PostgreSQL ENUM (typo-safe)
+    completed_stages = Column(ARRAY(String))  # ['stage1', 'stage2']
 
     # ===== LLM Context & Caching =====
-    llm_prompts = db.Column(JSONB)    # {"stage1": "prompt text", "stage2": "..."}
-    llm_responses = db.Column(JSONB)  # {"stage1": {...}, "stage2": {...}}
+    llm_prompts = Column(JSONB)    # {"stage1": "prompt text", "stage2": "..."}
+    llm_responses = Column(JSONB)  # {"stage1": {...}, "stage2": {...}}
 
     # ===== Metrics =====
-    total_tokens = db.Column(db.Integer, default=0)
-    stage_tokens = db.Column(JSONB)  # {"stage1": 1500, "stage2": 3200, ...}
+    total_tokens = Column(Integer, default=0)
+    stage_tokens = Column(JSONB)  # {"stage1": 1500, "stage2": 3200, ...}
 
     # ===== Recovery Metadata =====
-    last_successful_topic = db.Column(db.String(100))  # e.g., "mod_2_ch_3_top_5"
-    retry_count = db.Column(db.Integer, default=0)
-    error_log = db.Column(JSONB)  # [{"stage": "stage2", "error": "...", "timestamp": "..."}]
+    last_successful_topic = Column(String(100))  # e.g., "mod_2_ch_3_top_5"
+    retry_count = Column(Integer, default=0)
+    error_log = Column(JSONB)  # [{"stage": "stage2", "error": "...", "timestamp": "..."}]
 
     # ===== Timestamps =====
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = db.Column(
-        db.DateTime, 
-        nullable=False, 
-        default=datetime.utcnow, 
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(
+        DateTime,
+        nullable=False,
+        default=datetime.utcnow,
         onupdate=datetime.utcnow
     )
 

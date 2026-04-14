@@ -1,58 +1,63 @@
-"""
-Global error handlers for Flask application.
-"""
-from flask import jsonify
-from werkzeug.exceptions import HTTPException
-from app.exceptions import BaseAPIException
-from app.utils.logger import get_logger
+from fastapi import Request
+from fastapi.responses import JSONResponse
+from app.exceptions.not_found import NotFoundException
+from app.exceptions.auth import (
+    UnauthorizedException, InvalidCredentialsException,
+    InvalidTokenException, EmailAlreadyExistsException,
+    Auth0TokenException, Auth0JWKSException, Auth0SyncException,
+    ForbiddenException
+)
+from app.exceptions.api_error import APIErrorException
+from app.exceptions.validation import ValidationException
+from app.exceptions.storage import StorageException
 
-logger = get_logger(__name__)
 
+def register_exception_handlers(app):
 
-def register_error_handlers(app):
-    """
-    Register global error handlers.
+    @app.exception_handler(NotFoundException)
+    async def not_found_handler(request: Request, exc: NotFoundException):
+        return JSONResponse(status_code=404, content=exc.to_dict())
 
-    Args:
-        app (Flask): Flask application instance
-    """
+    @app.exception_handler(UnauthorizedException)
+    async def unauthorized_handler(request: Request, exc: UnauthorizedException):
+        return JSONResponse(status_code=401, content=exc.to_dict())
 
-    @app.errorhandler(BaseAPIException)
-    def handle_api_exception(error):
-        """Handle custom API exceptions."""
-        logger.warning(f"API Exception: {error.message}")
-        return jsonify(error.to_dict()), error.status_code
+    @app.exception_handler(InvalidCredentialsException)
+    async def invalid_creds_handler(request: Request, exc: InvalidCredentialsException):
+        return JSONResponse(status_code=401, content=exc.to_dict())
 
-    @app.errorhandler(404)
-    def handle_not_found(error):
-        """Handle 404 Not Found errors."""
-        return jsonify({
-            'error': 'Resource not found',
-            'status_code': 404
-        }), 404
+    @app.exception_handler(InvalidTokenException)
+    async def invalid_token_handler(request: Request, exc: InvalidTokenException):
+        return JSONResponse(status_code=401, content=exc.to_dict())
 
-    @app.errorhandler(500)
-    def handle_internal_error(error):
-        """Handle 500 Internal Server Error."""
-        logger.error(f"Internal server error: {str(error)}", exc_info=True)
-        return jsonify({
-            'error': 'Internal server error',
-            'status_code': 500
-        }), 500
+    @app.exception_handler(EmailAlreadyExistsException)
+    async def email_exists_handler(request: Request, exc: EmailAlreadyExistsException):
+        return JSONResponse(status_code=409, content=exc.to_dict())
 
-    @app.errorhandler(HTTPException)
-    def handle_http_exception(error):
-        """Handle all other HTTP exceptions."""
-        return jsonify({
-            'error': error.description,
-            'status_code': error.code
-        }), error.code
+    @app.exception_handler(Auth0TokenException)
+    async def auth0_token_handler(request: Request, exc: Auth0TokenException):
+        return JSONResponse(status_code=401, content=exc.to_dict())
 
-    @app.errorhandler(Exception)
-    def handle_unexpected_error(error):
-        """Handle all unexpected exceptions."""
-        logger.error(f"Unexpected error: {str(error)}", exc_info=True)
-        return jsonify({
-            'error': 'An unexpected error occurred',
-            'status_code': 500
-        }), 500
+    @app.exception_handler(Auth0JWKSException)
+    async def auth0_jwks_handler(request: Request, exc: Auth0JWKSException):
+        return JSONResponse(status_code=503, content=exc.to_dict())
+
+    @app.exception_handler(Auth0SyncException)
+    async def auth0_sync_handler(request: Request, exc: Auth0SyncException):
+        return JSONResponse(status_code=500, content=exc.to_dict())
+
+    @app.exception_handler(ForbiddenException)
+    async def forbidden_handler(request: Request, exc: ForbiddenException):
+        return JSONResponse(status_code=403, content=exc.to_dict())
+
+    @app.exception_handler(APIErrorException)
+    async def api_error_handler(request: Request, exc: APIErrorException):
+        return JSONResponse(status_code=exc.status_code, content=exc.to_dict())
+
+    @app.exception_handler(ValidationException)
+    async def validation_handler(request: Request, exc: ValidationException):
+        return JSONResponse(status_code=422, content=exc.to_dict())
+
+    @app.exception_handler(StorageException)
+    async def storage_handler(request: Request, exc: StorageException):
+        return JSONResponse(status_code=500, content=exc.to_dict())

@@ -12,3 +12,11 @@ GROQ_API_KEY=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
 
 # Redis
 REDIS_URL=redis://:redis_password@localhost:6379/0
+
+# ==========================================
+# ✅ AUTH0 CONFIGURATION (NEW)
+# ==========================================
+AUTH0_DOMAIN=chronos911.us.auth0.com
+AUTH0_CLIENT_ID=2nMejHYYamUwL4DlsbJ6zmU4dgZ00PMd
+AUTH0_CLIENT_SECRET= Rd5a58Sps9HQvJvVWfuJKkaM6ox3-eHEqn9FbI3bXIEFwAweL288obdTVtFyRO-e
+AUTH0_AUDIENCE=https://chronos911.us.auth0.com/api/v2/

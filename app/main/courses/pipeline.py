@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import UUID
 
-from flask import current_app
+import os
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
 from rich.panel import Panel
@@ -115,8 +115,8 @@ class CourseGeneratorPipeline:
         self.course = CoursesRepository.get_by_id(self.course_id)
 
         # Initialize API clients
-        self.groq_client = GroqClient(current_app.config['GROQ_API_KEY'])
-        self.youtube_client = YouTubeClient(current_app.config['YOUTUBE_API_KEY'])
+        self.groq_client = GroqClient(os.environ.get('GROQ_API_KEY', ''))
+        self.youtube_client = YouTubeClient(os.environ.get('YOUTUBE_API_KEY', ''))
 
         # Initialize checkpoint manager
         self.checkpoint_manager = CheckpointManager(self.course_id)

@@ -1,19 +1,18 @@
-# Core Flask
-Flask==3.1.2
-flask-cors==5.0.0
-flask-migrate==4.0.7
-flask-sqlalchemy==3.1.1
+# Core FastAPI
+fastapi
+uvicorn[standard]
+httpx
 
 # Password Hashing
 bcrypt==5.0.0
 
 # Database
 SQLAlchemy==2.0.36
+alembic
 
 # Validation
 pydantic>=2.10.4
 pydantic[email]>=2.8.0
-
 
 # API Clients
 google-generativeai==0.8.3
@@ -26,8 +25,8 @@ python-slugify==8.0.4
 
 # Testing
 pytest==8.3.4
-pytest-flask==1.3.0
 pytest-cov==6.0.0
+httpx
 
 # Development
 black==24.10.0
@@ -42,3 +41,4 @@ redis==5.3.1
 redis-om==0.3.5
 rich>=13.7.0
 psycopg2-binary==2.9.10
+python-jose[cryptography]==3.3.0

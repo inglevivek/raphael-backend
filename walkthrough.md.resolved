@@ -1,0 +1,89 @@
+# Flask → FastAPI Migration — Walkthrough
+
+## What Was Done
+
+The `raphael-backend` has been fully migrated from Flask/Flask-SQLAlchemy to FastAPI with plain SQLAlchemy 2.0.
+
+## Files Changed
+
+| File | Change |
+|------|--------|
+| [requirements.txt](file:///c:/Home/Projects/Mainstream/raphael-backend/requirements.txt) | Removed Flask packages; added `fastapi`, `uvicorn[standard]`, `httpx` |
+| [main.py](file:///c:/Home/Projects/Mainstream/raphael-backend/main.py) *(new)* | FastAPI app entry point with CORS, routers, exception handlers |
+| [app/database.py](file:///c:/Home/Projects/Mainstream/raphael-backend/app/database.py) *(new)* | Lazy `Base`, [SessionLocal](file:///c:/Home/Projects/Mainstream/raphael-backend/app/database.py#33-49), [get_db()](file:///c:/Home/Projects/Mainstream/raphael-backend/app/database.py#57-64) — engine only created when `DATABASE_URL` is set |
+| [app/__init__.py](file:///c:/Home/Projects/Mainstream/raphael-backend/app/__init__.py) | Replaced entire Flask factory with one-line comment |
+| [app/models.py](file:///c:/Home/Projects/Mainstream/raphael-backend/app/models.py) | `db.Model` → `Base`, `db.Column` → `Column`, `db.relationship` → `relationship`. Added missing `email_verified` column. |
+| [app/errors.py](file:///c:/Home/Projects/Mainstream/raphael-backend/app/errors.py) | Replaced Flask `@app.errorhandler` with FastAPI `@app.exception_handler` per exception class |
+| [app/main/routes.py](file:///c:/Home/Projects/Mainstream/raphael-backend/app/main/routes.py) | Flask `Blueprint` → FastAPI `APIRouter`, `/health` endpoint |
+| [app/main/__init__.py](file:///c:/Home/Projects/Mainstream/raphael-backend/app/main/__init__.py) | Removed Blueprint export |
+| [app/main/auth/auth0_utils.py](file:///c:/Home/Projects/Mainstream/raphael-backend/app/main/auth/auth0_utils.py) | Removed `current_app`/`g`/`request`. [verify_jwt()](file:///c:/Home/Projects/Mainstream/raphael-backend/app/main/auth/auth0_utils.py#82-139) reads `os.environ`. Added `HTTPBearer` + `Depends`-based [get_auth_claims](file:///c:/Home/Projects/Mainstream/raphael-backend/app/main/auth/auth0_utils.py#141-152), [get_auth0_user_id](file:///c:/Home/Projects/Mainstream/raphael-backend/app/main/auth/auth0_utils.py#154-160), [get_user_email](file:///c:/Home/Projects/Mainstream/raphael-backend/app/main/auth/auth0_utils.py#162-165), [get_user_permissions](file:///c:/Home/Projects/Mainstream/raphael-backend/app/main/auth/auth0_utils.py#167-170) |
+| [app/main/auth/routes.py](file:///c:/Home/Projects/Mainstream/raphael-backend/app/main/auth/routes.py) | Flask Blueprint → FastAPI `APIRouter`, 5 endpoints |
+| [app/main/auth/__init__.py](file:///c:/Home/Projects/Mainstream/raphael-backend/app/main/auth/__init__.py) | Removed Blueprint exports |
+| [app/main/auth/repository.py](file:///c:/Home/Projects/Mainstream/raphael-backend/app/main/auth/repository.py) | All `User.query.*` / `db.session.*` → SQLAlchemy 2.0 `select()` + [SessionLocal()](file:///c:/Home/Projects/Mainstream/raphael-backend/app/database.py#33-49) context managers |
+| [app/main/courses/routes.py](file:///c:/Home/Projects/Mainstream/raphael-backend/app/main/courses/routes.py) | Flask Blueprint → FastAPI `APIRouter`, 5 endpoints with `Depends(get_auth0_user_id)` |
+| [app/main/courses/__init__.py](file:///c:/Home/Projects/Mainstream/raphael-backend/app/main/courses/__init__.py) | Removed Blueprint exports |
+| [app/main/courses/service.py](file:///c:/Home/Projects/Mainstream/raphael-backend/app/main/courses/service.py) | Removed `current_app` and `app.app_context()`. Background thread uses [SessionLocal](file:///c:/Home/Projects/Mainstream/raphael-backend/app/database.py#33-49) directly. |
+| [app/main/courses/repository.py](file:///c:/Home/Projects/Mainstream/raphael-backend/app/main/courses/repository.py) | All `Course.query.*` / `db.session.*` → SQLAlchemy 2.0 patterns |
+| [app/main/courses/checkpoint_manager.py](file:///c:/Home/Projects/Mainstream/raphael-backend/app/main/courses/checkpoint_manager.py) | Replaced `db.session` with [SessionLocal()](file:///c:/Home/Projects/Mainstream/raphael-backend/app/database.py#33-49) + `session.merge()` for detached objects |
+| [app/main/courses/pipeline.py](file:///c:/Home/Projects/Mainstream/raphael-backend/app/main/courses/pipeline.py) | Removed `from flask import current_app`; reads API keys via `os.environ` |
+| [app/main/errors.py](file:///c:/Home/Projects/Mainstream/raphael-backend/app/main/errors.py) | Stubbed out (was [app/main/errors.py](file:///c:/Home/Projects/Mainstream/raphael-backend/app/main/errors.py), Flask-specific; replaced by [app/errors.py](file:///c:/Home/Projects/Mainstream/raphael-backend/app/errors.py)) |
+| [app/schemas/course_schema.py](file:///c:/Home/Projects/Mainstream/raphael-backend/app/schemas/course_schema.py) | Made [user_id](file:///c:/Home/Projects/Mainstream/raphael-backend/app/main/auth/auth0_utils.py#154-160) optional (JWT provides it now) |
+| [app/utils/decorators.py](file:///c:/Home/Projects/Mainstream/raphael-backend/app/utils/decorators.py) | Replaced Flask decorators with comment stub |
+| [app/utils/__init__.py](file:///c:/Home/Projects/Mainstream/raphael-backend/app/utils/__init__.py) | Removed deleted decorator imports |
+| [app/utils/redis/client.py](file:///c:/Home/Projects/Mainstream/raphael-backend/app/utils/redis/client.py) | Removed `current_app`; [init_app()](file:///c:/Home/Projects/Mainstream/raphael-backend/app/utils/redis/client.py#24-57) reads `REDIS_URL` from `os.environ`; all logging uses module logger |
+| [migrations/env.py](file:///c:/Home/Projects/Mainstream/raphael-backend/migrations/env.py) | Removed Flask-Migrate; imports `Base` + models for Alembic metadata |
+| [tests/conftest.py](file:///c:/Home/Projects/Mainstream/raphael-backend/tests/conftest.py) | Flask test client → `FastAPI TestClient`; SQLite in-memory via patched [SessionLocal](file:///c:/Home/Projects/Mainstream/raphael-backend/app/database.py#33-49) |
+| [run.py](file:///c:/Home/Projects/Mainstream/raphael-backend/run.py) | **Deleted** — Flask CLI entry point no longer needed |
+
+## Validation Results
+
+### ✅ Import Check
+
+```
+python import_test.py  →  Import OK
+```
+
+### ✅ Server Startup
+
+```
+uvicorn main:app --host 127.0.0.1 --port 8000
+INFO:  Uvicorn running on http://127.0.0.1:8000
+```
+
+### ✅ All 11 Endpoints Confirmed in Swagger UI
+
+![Swagger UI showing all routes](file:///C:/Users/VIVEK/.gemini/antigravity/brain/048634c8-8adb-43ef-ae7f-2e28813905b1/swagger_ui_check_1772376747831.webp)
+
+| Method | Path |
+|--------|------|
+| GET | `/health` |
+| POST | `/auth/callback` |
+| GET | `/auth/me` |
+| POST | `/auth/refresh` |
+| POST | `/auth/register` |
+| POST | `/auth/login` |
+| POST | `/courses/` |
+| GET | `/courses/` |
+| GET | `/courses/{course_id}` |
+| GET | `/courses/{course_id}/content` |
+| DELETE | `/courses/{course_id}` |
+
+## How to Start the Server
+
+```bash
+# From the project root, with the venv active:
+uvicorn main:app --reload
+# or
+.venv\Scripts\uvicorn main:app --reload
+```
+
+API docs: `http://localhost:8000/docs`
+
+## Extra Fixes Beyond Original Plan
+
+The following Flask remnants were found and fixed during verification (not in the original migration steps):
+
+- **[pipeline.py](file:///c:/Home/Projects/Mainstream/raphael-backend/app/main/courses/pipeline.py)** — `from flask import current_app` + config reads → `os.environ`
+- **[app/utils/redis/client.py](file:///c:/Home/Projects/Mainstream/raphael-backend/app/utils/redis/client.py)** — `current_app.logger.*` → module-level logger; [init_app()](file:///c:/Home/Projects/Mainstream/raphael-backend/app/utils/redis/client.py#24-57) reads `REDIS_URL` from env
+- **[app/utils/__init__.py](file:///c:/Home/Projects/Mainstream/raphael-backend/app/utils/__init__.py)** — Removed import of now-deleted `handle_errors`/`validate_schema`
+- **[app/main/errors.py](file:///c:/Home/Projects/Mainstream/raphael-backend/app/main/errors.py)** — Stubbed out (separate from [app/errors.py](file:///c:/Home/Projects/Mainstream/raphael-backend/app/errors.py), this was the Blueprint-level error file)

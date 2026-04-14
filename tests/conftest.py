@@ -1,91 +1,96 @@
 """
-Pytest configuration and shared fixtures.
+Pytest configuration and shared fixtures — FastAPI version.
 """
 import pytest
 import os
-import tempfile
 from pathlib import Path
 from unittest.mock import Mock, MagicMock
-from flask import Flask
-from app.models import User, Course
-from app import db
-from app.main.courses.memory import (
-    TopicMemory, ChapterMemory, ModuleMemory, CourseMemory
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
+
+# Override DATABASE_URL before importing app modules that read it at module level
+os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
+os.environ.setdefault("AUTH0_DOMAIN", "test.auth0.com")
+os.environ.setdefault("AUTH0_AUDIENCE", "test-audience")
+
+from app.database import Base
+import app.database as _db_module
+
+# Create a test engine (SQLite in-memory)
+TEST_ENGINE = create_engine(
+    "sqlite:///:memory:",
+    connect_args={"check_same_thread": False}
 )
+TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=TEST_ENGINE)
 
-@pytest.fixture(scope='session')
-def app():
-    """Create Flask app for testing."""
-    app = Flask(__name__)
-    app.config['TESTING'] = True
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    app.config['SECRET_KEY'] = 'test-secret-key'
-    app.config['GEMINI_API_KEY'] = 'test-gemini-key'
-    app.config['GROQ_API_KEY'] = 'test-groq-key'
-    app.config['YOUTUBE_API_KEY'] = 'test-youtube-key'
-    
-    # Create temp directory for test files
-    temp_dir = tempfile.mkdtemp()
-    app.config['COURSES_DIR'] = temp_dir
-    app.config['BASE_DIR'] = Path(temp_dir)
-    
-    db.init_app(app)
-    
-    with app.app_context():
-        db.create_all()
-        yield app
-        db.session.remove()
-        db.drop_all()
-    
-    # Cleanup temp directory
-    import shutil
-    shutil.rmtree(temp_dir, ignore_errors=True)
+# Patch the module-level engine and SessionLocal used by all repositories
+_db_module.engine = TEST_ENGINE
+_db_module.SessionLocal = TestSessionLocal
+
+
+@pytest.fixture(scope="session", autouse=True)
+def create_tables():
+    """Create all tables in the test SQLite database."""
+    from app.models import User, Course, CourseCheckpoint  # noqa: F401
+    Base.metadata.create_all(bind=TEST_ENGINE)
+    yield
+    Base.metadata.drop_all(bind=TEST_ENGINE)
+
 
 @pytest.fixture
-def client(app):
-    """Flask test client."""
-    return app.test_client()
+def client():
+    """FastAPI TestClient."""
+    from main import app as fastapi_app
+    return TestClient(fastapi_app)
+
 
 @pytest.fixture
-def app_context(app):
-    """Application context for tests."""
-    with app.app_context():
-        yield app
-
-@pytest.fixture
-def db_session(app_context):
+def db_session(create_tables):
     """Database session for tests."""
-    yield db.session
-    db.session.rollback()
-    db.session.query(Course).delete()
-    db.session.query(User).delete()
-    db.session.commit()
+    session = TestSessionLocal()
+    yield session
+    session.rollback()
+    # Clean up tables
+    from app.models import Course, User
+    session.query(Course).delete()
+    session.query(User).delete()
+    session.commit()
+    session.close()
+
 
 @pytest.fixture
 def sample_user(db_session):
     """Create sample user."""
+    from app.models import User
     user = User(
         email='test@example.com',
         password_hash='hashed_password',
-        name='Test User'
+        name='Test User',
+        auth0_user_id='auth0|test123'
     )
     db_session.add(user)
     db_session.commit()
+    db_session.refresh(user)
     return user
+
 
 @pytest.fixture
 def sample_course(db_session, sample_user):
     """Create sample course."""
+    from app.models import Course
     course = Course(
         user_id=sample_user.id,
-        topic='Python Programming',
+        title='Python Programming',
         level='beginner',
-        status='generating'
+        status='generating',
+        course_json={'metadata': {}, 'index': {'modules': []}, 'content': {}}
     )
     db_session.add(course)
     db_session.commit()
+    db_session.refresh(course)
     return course
+
 
 @pytest.fixture
 def sample_outline():
@@ -132,6 +137,7 @@ def sample_outline():
         ]
     }
 
+
 @pytest.fixture
 def mock_groq_client():
     """Mock Groq API client."""
@@ -145,6 +151,7 @@ def mock_groq_client():
     }
     client.generate.return_value = "This is a detailed explanation of the topic."
     return client
+
 
 @pytest.fixture
 def mock_youtube_client():
@@ -162,9 +169,11 @@ def mock_youtube_client():
     ]
     return client
 
+
 @pytest.fixture
 def sample_topic_memory():
     """Sample TopicMemory instance."""
+    from app.main.courses.memory import TopicMemory
     return TopicMemory(
         topic_id='mod_1_ch_1_top_1',
         topic_number=1,
@@ -174,9 +183,11 @@ def sample_topic_memory():
         status='complete'
     )
 
+
 @pytest.fixture
 def sample_chapter_memory(sample_topic_memory):
     """Sample ChapterMemory instance."""
+    from app.main.courses.memory import ChapterMemory
     chapter = ChapterMemory(
         chapter_id='mod_1_ch_1',
         chapter_number=1,
@@ -185,9 +196,11 @@ def sample_chapter_memory(sample_topic_memory):
     chapter.add_topic(sample_topic_memory)
     return chapter
 
+
 @pytest.fixture
 def sample_module_memory(sample_chapter_memory):
     """Sample ModuleMemory instance."""
+    from app.main.courses.memory import ModuleMemory
     module = ModuleMemory(
         module_id='mod_1',
         module_number=1,
@@ -197,9 +210,11 @@ def sample_module_memory(sample_chapter_memory):
     module.add_chapter(sample_chapter_memory)
     return module
 
+
 @pytest.fixture
 def sample_course_memory(sample_module_memory):
     """Sample CourseMemory instance."""
+    from app.main.courses.memory import CourseMemory
     memory = CourseMemory(
         course_id=1,
         topic='Python Programming',
