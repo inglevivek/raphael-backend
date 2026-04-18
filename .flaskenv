@@ -12,3 +12,12 @@ GROQ_API_KEY=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
 
 # Redis
 REDIS_URL=redis://:redis_password@localhost:6379/0
+
+# ==========================================
+# ✅ AUTH0 CONFIGURATION (NEW)
+# ==========================================
+AUTH0_DOMAIN=dev-chronos.jp.auth0.com
+AUTH0_CLIENT_ID=BOsFc3puib2P0495rCVvvv5k5IYPWSKj
+AUTH0_CLIENT_SECRET=bvgZlJRsMOzIAscz-sB3woyq7PCmnaWI6cEnAQtEva7Mv7rlIqL3rAONfB11nZYi
+AUTH0_AUDIENCE=http://127.0.0.1:8000
+RAPHAEL_INTERNAL_SECRET = asteroiddestroyer911

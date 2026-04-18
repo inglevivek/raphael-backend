@@ -2,7 +2,7 @@
 Pydantic schemas for authentication endpoints.
 """
 from pydantic import BaseModel, EmailStr, field_validator
-
+from typing import Optional
 
 class RegisterSchema(BaseModel):
     """Schema for user registration."""
@@ -33,3 +33,12 @@ class LoginSchema(BaseModel):
 
     email: EmailStr
     password: str
+
+
+class Auth0SyncSchema(BaseModel):
+    sub: str
+    email: Optional[str] = None
+    name: Optional[str] = None
+    picture: Optional[str] = None
+    email_verified: bool = False
+    trigger: str = "unknown"

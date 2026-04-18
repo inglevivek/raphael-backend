@@ -10,8 +10,10 @@ Provides:
 import redis
 import json
 from typing import Optional, Dict, Any, Union
-from flask import current_app
+import logging
 from uuid import UUID
+
+logger = logging.getLogger(__name__)
 
 class RedisClient:
     """Redis client for caching LLM responses and managing checkpoints"""
@@ -19,17 +21,18 @@ class RedisClient:
     def __init__(self):
         self.client: Optional[redis.Redis] = None
 
-    def init_app(self, app):
+    def init_app(self, app=None):
         """
-        Initialize Redis client with Flask app.
+        Initialize Redis client.
 
         Args:
-            app: Flask application instance
+            app: Optional Flask/FastAPI app instance (ignored, kept for compatibility)
         """
-        redis_url = app.config.get('REDIS_URL')
+        import os
+        redis_url = os.environ.get('REDIS_URL')
 
         if not redis_url:
-            app.logger.warning("REDIS_URL not configured. Redis caching disabled.")
+            logger.warning("REDIS_URL not configured. Redis caching disabled.")
             return
 
         try:
@@ -43,13 +46,13 @@ class RedisClient:
 
             # Test connection
             self.client.ping()
-            app.logger.info(f"✅ Redis connected: {redis_url}")
+            logger.info(f"Redis connected: {redis_url}")
 
         except redis.ConnectionError as e:
-            app.logger.error(f"❌ Redis connection failed: {e}")
+            logger.error(f"Redis connection failed: {e}")
             self.client = None
         except Exception as e:
-            app.logger.error(f"❌ Redis initialization error: {e}")
+            logger.error(f"Redis initialization error: {e}")
             self.client = None
 
     def is_connected(self) -> bool:
@@ -90,7 +93,7 @@ class RedisClient:
             self.client.setex(key, ttl, json.dumps(response))
             return True
         except Exception as e:
-            current_app.logger.error(f"Redis cache error: {e}")
+            logger.error(f"Redis cache error: {e}")
             return False
 
     def get_cached_llm_response(self, prompt: str) -> Optional[Dict[Any, Any]]:
@@ -117,7 +120,7 @@ class RedisClient:
                 return json.loads(data)
             return None
         except Exception as e:
-            current_app.logger.error(f"Redis get cache error: {e}")
+            logger.error(f"Redis get cache error: {e}")
             return None
 
     # ==========================================
@@ -145,7 +148,7 @@ class RedisClient:
             self.client.setex(key, ttl, json.dumps(data))
             return True
         except Exception as e:
-            current_app.logger.error(f"Redis checkpoint save error: {e}")
+            logger.error(f"Redis checkpoint save error: {e}")
             return False
 
     def get_checkpoint(self, course_id: Union[str, int, UUID], stage: str) -> Optional[Dict[Any, Any]]:
@@ -170,7 +173,7 @@ class RedisClient:
                 return json.loads(data)
             return None
         except Exception as e:
-            current_app.logger.error(f"Redis checkpoint get error: {e}")
+            logger.error(f"Redis checkpoint get error: {e}")
             return None
 
     def delete_checkpoint(self, course_id: Union[str, int, UUID], stage: str = None) -> bool:
@@ -200,7 +203,7 @@ class RedisClient:
                     self.client.delete(*keys)
             return True
         except Exception as e:
-            current_app.logger.error(f"Redis checkpoint delete error: {e}")
+            logger.error(f"Redis checkpoint delete error: {e}")
             return False
 
     # ==========================================
@@ -227,7 +230,7 @@ class RedisClient:
             self.client.setex(key, ttl, state)
             return True
         except Exception as e:
-            current_app.logger.error(f"Redis state set error: {e}")
+            logger.error(f"Redis state set error: {e}")
             return False
 
     def get_pipeline_state(self, course_id: Union[str, int, UUID]) -> Optional[str]:
@@ -247,7 +250,7 @@ class RedisClient:
             key = f"pipeline:state:{course_id}"
             return self.client.get(key)
         except Exception as e:
-            current_app.logger.error(f"Redis state get error: {e}")
+            logger.error(f"Redis state get error: {e}")
             return None
 
     def increment_retry_count(self, course_id: Union[str, int, UUID], stage: str) -> int:
@@ -270,7 +273,7 @@ class RedisClient:
             self.client.expire(key, 86400)  # Expire after 24 hours
             return count
         except Exception as e:
-            current_app.logger.error(f"Redis retry increment error: {e}")
+            logger.error(f"Redis retry increment error: {e}")
             return 0
 
     def get_retry_count(self, course_id: Union[str, int, UUID], stage: str) -> int:
@@ -292,7 +295,7 @@ class RedisClient:
             count = self.client.get(key)
             return int(count) if count else 0
         except Exception as e:
-            current_app.logger.error(f"Redis retry get error: {e}")
+            logger.error(f"Redis retry get error: {e}")
             return 0
 
     # ==========================================
@@ -326,7 +329,7 @@ class RedisClient:
 
             return True
         except Exception as e:
-            current_app.logger.error(f"Redis flush error: {e}")
+            logger.error(f"Redis flush error: {e}")
             return False
 
     def get_stats(self) -> Dict[str, Any]:
@@ -349,7 +352,7 @@ class RedisClient:
                 "total_commands_processed": info.get("total_commands_processed")
             }
         except Exception as e:
-            current_app.logger.error(f"Redis stats error: {e}")
+            logger.error(f"Redis stats error: {e}")
             return {"connected": False, "error": str(e)}
 
 
