@@ -247,8 +247,8 @@ git checkout -b feat/short-description
 - Review dependencies for vulnerabilities regularly.
 
 ## License & contact
-- License: (insert license, e.g., MIT)
-- Maintainer: (insert maintainer name and contact email)
+- License: MIT
+- Maintainer: Vivek Ingle vivekingle513@gmail.com
 
 ## Appendix: example .env.example
 ```env
